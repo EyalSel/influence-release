@@ -828,5 +828,5 @@ class GenericNeuralNet(object):
         self.data_sets = base.Datasets(train=self.data_sets.train, validation=self.data_sets.validation, test=new_test)
         self.all_test_feed_dict = self.fill_feed_dict_with_all_ex(self.data_sets.test)                
         self.num_test_examples = len(new_test_y)
-        self.reset_datasets()        
+        self.reset_datasets()   
 
