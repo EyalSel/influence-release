@@ -9,19 +9,24 @@ class Model(object):
     # self.sess.run(grad_loss_no_reg_op, feed_dict={input_placeholder=x, label_placeholder=y})
     # return gradient of loss
 
+  def grad_total_loss(data, labels):
+    # compute the gradient of the total loss (w/ reg val) on the 
+    # input data w.r.t model parameters
+
   def hessian_vector_product(train_dataset, vector):
     # use total loss graph and parameters Tf.variables and multiply them by a vector
 
   def params():
     # return all the parameters in the model
 
-  def grad_total_loss(data, labels):
-    # compute the gradient of the total loss (w/ reg val) on the 
-    # input data w.r.t model parameters
-
-  def grad_influence_wrt_input(inverse_hvp, data, labels):
-    # compute the gradient of the product (Hessian matrix & gradients of test loss)
-    # w.r.t the input data
+  def grad_influence_wrt_input(inverse_hvp, xTr, yTr):
+    # inverse_hvp is the product of:
+    # 1. The Hessian of the total training loss with respect to the parameters (P x P)
+    # 2. The gradient of the test loss with respect to the parameters (P x 1)
+    # xTr and yTr are the training points for which we get the perturbation influence.
+    # We do this by:
+    # 1. computing the product of inverse_hvp (P x 1) with the gradient of the loss of (xTr, yTr) w.r.t the parameters (P x 1)
+    # 2. Taking the gradient of the product w.r.t. xTr
   
 # The average gradient of multiple test points' loss (to maximize mean loss for these test points)
 # This is done batch-wise
@@ -207,8 +212,8 @@ def get_grad_of_influence_wrt_input(model,
   grad_influence_wrt_input_val = None
   for counter, idx_to_remove in enumerate(train_idx):
       # Take the derivative of the influence w.r.t input       
-      current_grad_influence_wrt_input_val = model.grad_influence_wrt_input(inverse_hvp, \
-                                                      train_data.x[idx_to_remove, :].reshape(1, -1),\
+      current_grad_influence_wrt_input_val = model.grad_influence_wrt_input(inverse_hvp, 
+                                                      train_data.x[idx_to_remove, :].reshape(1, -1),
                                                       train_data.labels[idx_to_remove].reshape(-1))
       if grad_influence_wrt_input_val is None:
           grad_influence_wrt_input_val = np.zeros([len(train_idx), len(current_grad_influence_wrt_input_val)])
