@@ -1,9 +1,9 @@
 
 class Model(object):
   """docstring for Model"""
-  def __init__(self, arg):
-    super(Model, self).__init__()
-    self.name = # Name of model
+  # def __init__(self, arg):
+  #   super(Model, self).__init__()
+  #   self.model_name = # Name of model
 
   def grad_loss_no_reg(x, y):
     # self.sess.run(grad_loss_no_reg_op, feed_dict={input_placeholder=x, label_placeholder=y})
@@ -102,7 +102,7 @@ def get_cg_callback(self, v, verbose):
 # to see what they are trying to do here
 # minibatch_hessian_vector_val(x, model, train_dataset, batch_size = 100, damping=0)
 def get_inverse_hvp_cg(model, train_data, gradients, verbose=True):
-  params_val = model.params()
+  params_val = model.params
   num_params = len(np.concatenate(params_val))        
   print('Total number of parameters: %s' % num_params)
   def vec_to_list(v):
@@ -154,7 +154,7 @@ def get_influence_on_test_loss(model,
   # by the Conjugate Gradiant approximation and the result is stored so that 
   # no future computation will be needed
   start_time = time.time()
-  approximation_filename = os.path.join(self.train_dir, '%s-test-%s.npz' % (model.name, test_description))
+  approximation_filename = os.path.join(self.train_dir, '%s-test-%s.npz' % (model.model_name, test_description))
   if os.path.exists(approximation_filename) and force_refresh == False:
       inverse_hvp = list(np.load(approximation_filename)['inverse_hvp'])
       print('Loaded inverse HVP from %s' % approximation_filename)
@@ -198,7 +198,7 @@ def get_grad_of_influence_wrt_input(model,
   
   start_time = time.time()
 
-  approx_filename = os.path.join(self.train_dir, '%s-test-%s.npz' % (model.name, test_description))
+  approx_filename = os.path.join(self.train_dir, '%s-test-%s.npz' % (model.model_name, test_description))
   if os.path.exists(approx_filename) and force_refresh == False:
       inverse_hvp = list(np.load(approx_filename)['inverse_hvp'])
       print('Loaded inverse HVP from %s' % approx_filename)

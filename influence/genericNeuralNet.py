@@ -168,6 +168,9 @@ class GenericNeuralNet(object):
         self.adversarial_loss, self.indiv_adversarial_loss = self.adversarial_loss(self.logits, self.labels_placeholder)
         if self.adversarial_loss is not None:
             self.grad_adversarial_loss_op = tf.gradients(self.adversarial_loss, self.params)
+
+        self._v = [tf.placeholder(tf.float32, shape=a.get_shape()) for a in self.params]
+        self.hvp_op = self.hessian_vector_product_op(self.total_loss, self.params, self._v)
         
 
     def get_vec_to_list_fn(self):
@@ -828,5 +831,64 @@ class GenericNeuralNet(object):
         self.data_sets = base.Datasets(train=self.data_sets.train, validation=self.data_sets.validation, test=new_test)
         self.all_test_feed_dict = self.fill_feed_dict_with_all_ex(self.data_sets.test)                
         self.num_test_examples = len(new_test_y)
-        self.reset_datasets()   
+        self.reset_datasets()  
+
+
+    def new_params(self):
+      return self.sess.run(self.params)
+
+    def hessian_vector_product_op(self, ys, xs, v):
+      xs = self.params
+      ys = self.total_loss
+
+      # Validate the input
+      length = len(xs)
+      if len(v) != length:
+        raise ValueError("xs and v must have the same length.")
+
+      # First backprop
+      grads = gradients(ys, xs)
+
+      # grads = xs
+
+      assert len(grads) == length
+
+      elemwise_products = [
+          math_ops.multiply(grad_elem, array_ops.stop_gradient(v_elem))
+          for grad_elem, v_elem in zip(grads, v) if grad_elem is not None
+      ]
+
+      # Second backprop  
+      grads_with_none = gradients(elemwise_products, xs)
+      return_grads = [
+          grad_elem if grad_elem is not None \
+          else tf.zeros_like(x) \
+          for x, grad_elem in zip(xs, grads_with_none)]
+      
+      return return_grads
+
+    def hessian_vector_product(self, train_dataset, v):
+      feed_dict = {
+            self.input_placeholder: train_dataset.x,
+            self.labels_placeholder: train_dataset.labels,
+            self._v: v
+        }
+      return self.sess.run(self.hvp_op, feed_dict=feed_dict)
+
+    def grad_influence_wrt_input(inverse_hvp, xTr, yTr):
+      # inverse_hvp is the product of:
+      #   1. The inverse Hessian of the total training loss with respect to the parameters (P x P)
+      #   2. The gradient of the test loss with respect to the parameters (P x 1)
+      #   This is estimated directly using Conjugate gradient, which uses another approximation for the product of the Hessian and a vector v.
+      # xTr and yTr are the training points for which we get the perturbation influence.
+      # We do this by:
+      # 1. computing the product of inverse_hvp (P x 1) with the gradient of the loss of (xTr, yTr) w.r.t the parameters (P x 1)
+      # 2. Taking the gradient of the product w.r.t. xTr
+       feed_dict = {
+            self.input_placeholder: xTr,
+            self.labels_placeholder: yTr,
+        }
+
+        self.update_feed_dict_with_v_placeholder(feed_dict, inverse_hvp)
+        return self.sess.run(self.grad_influence_wrt_input_op, feed_dict=feed_dict)[0][0,:]
 
