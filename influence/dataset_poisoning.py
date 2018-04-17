@@ -66,21 +66,18 @@ def poison_with_influence_proj_gradient_step(model, indices_to_poison, grad_infl
 
 def generate_inception_features(model, poisoned_X_train_subset, labels_subset, batch_size=None):
     poisoned_train = DataSet(poisoned_X_train_subset, labels_subset)    
-    poisoned_data_sets = base.Datasets(train=poisoned_train, validation=None, test=None)
 
     if batch_size == None:
         batch_size = len(labels_subset)
 
-    num_examples = poisoned_data_sets.train.num_examples
-    assert num_examples % batch_size == 0
-    num_iter = int(num_examples / batch_size)
+    assert len(poisoned_X_train_subset) % batch_size == 0
+    num_iter = int(len(poisoned_X_train_subset) / batch_size)
 
     poisoned_data_sets.train.reset_batch()
 
     inception_features_val = []
     for i in xrange(num_iter):
-        feed_dict = model.fill_feed_dict_with_batch(poisoned_data_sets.train, batch_size=batch_size)
-        inception_features_val_temp = model.sess.run(model.inception_features, feed_dict=feed_dict)
+        inception_features_val_temp = model.generate_inception_features(poisoned_train, batch_size)
         inception_features_val.append(inception_features_val_temp)
 
     return np.concatenate(inception_features_val)

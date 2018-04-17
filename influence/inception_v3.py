@@ -383,7 +383,7 @@ def InceptionV3(include_top=True,
             #     WEIGHTS_PATH_NO_TOP,
             #     cache_subdir='models',
             #     md5_hash='bcbd6486424b2319ff4ef7d526e38f63')
-            weights_path = 'inception/inception_v3_weights_tf_dim_ordering_tf_kernels_notop.h5'
+            weights_path = '../inception/inception_v3_weights_tf_dim_ordering_tf_kernels_notop.h5'
 
         model.load_weights(weights_path)
         if K.backend() == 'theano':
