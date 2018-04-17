@@ -62,39 +62,39 @@ def minibatch_hessian_vector_val(x, model, train_dataset, batch_size = 100, damp
   final_result = [accumulated_hvp + damping * v_vector for (accumulated_hvp, v_vector) in zip(final_result, x)]
   return final_result
 
-def get_vec_to_list_fn(self):
-  params_val = self.sess.run(self.params)
-  self.num_params = len(np.concatenate(params_val))        
-  print('Total number of parameters: %s' % self.num_params)
-  def vec_to_list(v):
-    return_list = []
-    cur_pos = 0
-    for p in params_val:
-        return_list.append(v[cur_pos : cur_pos+len(p)])
-        cur_pos += len(p)
+# def get_vec_to_list_fn(self):
+#   params_val = self.sess.run(self.params)
+#   self.num_params = len(np.concatenate(params_val))        
+#   print('Total number of parameters: %s' % self.num_params)
+#   def vec_to_list(v):
+#     return_list = []
+#     cur_pos = 0
+#     for p in params_val:
+#         return_list.append(v[cur_pos : cur_pos+len(p)])
+#         cur_pos += len(p)
 
-    assert cur_pos == len(v)
-    return return_list
-  return vec_to_list
+#     assert cur_pos == len(v)
+#     return return_list
+#   return vec_to_list
 
-def get_cg_callback(self, v, verbose):
-  fmin_loss_fn = self.get_fmin_loss_fn(v)
-  def get_fmin_loss(x):
-    hessian_vector_val = self.minibatch_hessian_vector_val(self.vec_to_list(x))
-    return 0.5 * np.dot(np.concatenate(hessian_vector_val), x), -np.dot(np.concatenate(v), x)
-  def cg_callback(x):
-    # x is current params
-    v = self.vec_to_list(x)
-    idx_to_remove = 5
-    single_train_feed_dict = self.fill_feed_dict_with_one_ex(self.data_sets.train, idx_to_remove)      
-    train_grad_loss_val = self.sess.run(self.grad_total_loss_op, feed_dict=single_train_feed_dict)
-    predicted_loss_diff = np.dot(np.concatenate(v), np.concatenate(train_grad_loss_val)) / self.num_train_examples
-    if verbose:
-        print('Function value: %s' % fmin_loss_fn(x))
-        quad, lin = get_fmin_loss(x)
-        print('Split function value: %s, %s' % (quad, lin))
-        print('Predicted loss diff on train_idx %s: %s' % (idx_to_remove, predicted_loss_diff))
-  return cg_callback
+# def get_cg_callback(self, v, verbose):
+#   fmin_loss_fn = self.get_fmin_loss_fn(v)
+#   def get_fmin_loss(x):
+#     hessian_vector_val = self.minibatch_hessian_vector_val(self.vec_to_list(x))
+#     return 0.5 * np.dot(np.concatenate(hessian_vector_val), x), -np.dot(np.concatenate(v), x)
+#   def cg_callback(x):
+#     # x is current params
+#     v = self.vec_to_list(x)
+#     idx_to_remove = 5
+#     single_train_feed_dict = self.fill_feed_dict_with_one_ex(self.data_sets.train, idx_to_remove)      
+#     train_grad_loss_val = self.sess.run(self.grad_total_loss_op, feed_dict=single_train_feed_dict)
+#     predicted_loss_diff = np.dot(np.concatenate(v), np.concatenate(train_grad_loss_val)) / self.num_train_examples
+#     if verbose:
+#         print('Function value: %s' % fmin_loss_fn(x))
+#         quad, lin = get_fmin_loss(x)
+#         print('Split function value: %s, %s' % (quad, lin))
+#         print('Predicted loss diff on train_idx %s: %s' % (idx_to_remove, predicted_loss_diff))
+#   return cg_callback
 
 # Gradients is a list of size P (for P paramaters in the model)
 # Needs train_data to get loss to compute Hessian of model's loss w.r.t parameters
@@ -138,14 +138,9 @@ def get_inverse_hvp_cg(model, train_data, gradients, verbose=True):
       maxiter=100) 
   return vec_to_list(fmin_results)
 
-def get_influence_on_test_loss(model, 
-                               test_data, train_idx, train_data, 
-                               test_description,
-                               force_refresh=True):
-  # If train_idx is None then use X and Y (phantom points)
-  # Need to make sure test_data stays consistent between models
-  # because mini-batching permutes dataset order
-
+def get_hvp(model, 
+            test_data, train_data,
+            test_description, force_refresh=True):
   # returns a list of gradients of size P (to represent P parameters in the model)
   test_grad_loss_no_reg_val = get_test_grad_loss_no_reg_val(model, test_data)
   print('Norm of test gradient: %s' % np.linalg.norm(np.concatenate(test_grad_loss_no_reg_val)))
@@ -154,7 +149,7 @@ def get_influence_on_test_loss(model,
   # by the Conjugate Gradiant approximation and the result is stored so that 
   # no future computation will be needed
   start_time = time.time()
-  approximation_filename = os.path.join(self.train_dir, '%s-test-%s.npz' % (model.model_name, test_description))
+  approximation_filename = os.path.join(model.train_dir, '%s-test-%s.npz' % (model.model_name, test_description))
   if os.path.exists(approximation_filename) and force_refresh == False:
       inverse_hvp = list(np.load(approximation_filename)['inverse_hvp'])
       print('Loaded inverse HVP from %s' % approximation_filename)
@@ -164,6 +159,18 @@ def get_influence_on_test_loss(model,
       print('Saved inverse HVP to %s' % approximation_filename)
   duration = time.time() - start_time
   print('Inverse HVP took %s sec' % duration)
+  return inverse_hvp
+
+
+def get_influence_on_test_loss(model, 
+                               test_data, train_idx, train_data, 
+                               test_description,
+                               force_refresh=True):
+  # If train_idx is None then use X and Y (phantom points)
+  # Need to make sure test_data stays consistent between models
+  # because mini-batching permutes dataset order
+
+  inverse_hvp = get_hvp(model, test_data, train_data, test_description, force_refresh)
 
   start_time = time.time()
   num_to_remove = len(train_idx)

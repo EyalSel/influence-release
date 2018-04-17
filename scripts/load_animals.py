@@ -11,7 +11,7 @@ from keras.preprocessing import image
 from influence.dataset import DataSet
 from influence.inception_v3 import preprocess_input
 
-BASE_DIR = 'data' # TODO: change
+BASE_DIR = '../data' # TODO: change
 
 def fill(X, Y, idx, label, img_path, img_side):
     img = image.load_img(img_path, target_size=(img_side, img_side))
@@ -49,6 +49,37 @@ def extract_and_rename_animals():
             dst_filename = os.path.join(class_dir, '%s_%s.JPEG' % (class_string, file_idx))
             os.rename(src_filename, dst_filename)
 
+def load_dummy(num_train_ex_per_class=300, 
+                 num_test_ex_per_class=100,
+                 num_valid_ex_per_class=0,
+                 classes=None,
+                 ):   
+    num_channels = 3
+    img_side = 299
+
+    if num_valid_ex_per_class == 0:
+        valid_str = ''
+    else:
+        valid_str = '_valid-%s' % num_valid_examples
+
+    num_classes = len(classes)
+    num_train_examples = num_train_ex_per_class * num_classes
+    num_test_examples = num_test_ex_per_class * num_classes
+    num_valid_examples = num_valid_ex_per_class * num_classes
+
+    X_train = np.zeros([num_train_examples, img_side, img_side, num_channels])
+    X_test = np.zeros([num_test_examples, img_side, img_side, num_channels])
+    X_valid = np.zeros([num_valid_examples, img_side, img_side, num_channels])
+
+    Y_train = np.zeros([num_train_examples])
+    Y_test = np.zeros([num_test_examples])
+    Y_valid = np.zeros([num_valid_examples])
+
+    train = DataSet(X_train, Y_train)
+    validation = None
+    test = DataSet(X_test, Y_test)
+
+    return base.Datasets(train=train, validation=validation, test=test)
 
 
 def load_animals(num_train_ex_per_class=300, 
@@ -168,15 +199,16 @@ def load_animals(num_train_ex_per_class=300,
     return base.Datasets(train=train, validation=validation, test=test)
 
 
-def load_koda():
+def load_koda(filename):
     num_channels = 3
     img_side = 299
 
-    data_filename = os.path.join(BASE_DIR, 'dataset_koda.npz')
+    data_filename = os.path.join(BASE_DIR, filename)
 
     if os.path.exists(data_filename):
         print('Loading Koda from disk...')
         f = np.load(data_filename)
+        print(f.keys())
         X = f['X']
         Y = f['Y']
     else:
@@ -207,15 +239,42 @@ def load_koda():
 
 def load_dogfish_with_koda():        
     classes = ['dog', 'fish']
-    X_test, Y_test = load_koda()
+    X_test, Y_test = load_koda("dataset_koda.npz")
 
-    data_sets = load_animals(num_train_ex_per_class=900, 
-                 num_test_ex_per_class=300,
-                 num_valid_ex_per_class=0,
-                 classes=classes)
-    train = data_sets.train
-    validation = data_sets.validation
+    # data_sets = load_animals(num_train_ex_per_class=200, 
+    #              num_test_ex_per_class=100,
+    #              num_valid_ex_per_class=0,
+    #              classes=classes)
+    X_train, Y_train = load_koda("dataset_dog-fish_train-900_test-300.npz")
+    # train = data_sets.train
+    # validation = data_sets.validation
+    validation = None
     test = DataSet(X_test, Y_test)
+    train = DataSet(X_train, Y_train)
+
+    return base.Datasets(train=train, validation=validation, test=test)
+
+def new_load_dogfish_with_koda():        
+    classes = ['dog', 'fish']
+    
+    num_channels = 3
+    img_side = 299
+
+    data_filename = os.path.join(BASE_DIR, "dataset_dog-fish_train-900_test-300.npz")
+
+    if os.path.exists(data_filename):
+        print('Loading Koda from disk...')
+        f = np.load(data_filename)
+        X_test = f['X_test']
+        Y_test = f['Y_test']
+        X_train = f['X_train']
+        Y_train = f['Y_train']
+    else:
+        print("???")
+
+    validation = None
+    test = DataSet(X_test, Y_test)
+    train = DataSet(X_train, Y_train)
 
     return base.Datasets(train=train, validation=validation, test=test)
 
@@ -225,8 +284,10 @@ def load_dogfish_with_orig_and_koda():
     X_test, Y_test = load_koda()
     X_test = np.reshape(X_test, (X_test.shape[0], -1))
 
-    data_sets = load_animals(num_train_ex_per_class=900, 
-                 num_test_ex_per_class=300,
+    print("finished loading from koda")
+
+    data_sets = load_animals(num_train_ex_per_class=200, 
+                 num_test_ex_per_class=100,
                  num_valid_ex_per_class=0,
                  classes=classes)
     train = data_sets.train
