@@ -306,7 +306,7 @@ class BinaryInceptionModel(GenericNeuralNet):
 
         # Maybe update Hessian every time main train routine is called?
 
-    def generate_inception_features(self, train_dataset, batch_size):
+    def generate_inception_features(train_dataset, batch_size):
         feed_dict = self.fill_feed_dict_with_batch(train_dataset, batch_size)
         return self.sess.run(self.inception_features, feed_dict=feed_dict)
 

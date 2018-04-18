@@ -1,60 +1,61 @@
+from __future__ import division
+from __future__ import print_function
+from __future__ import absolute_import
+from __future__ import unicode_literals  
 
-class Model(object):
-  """docstring for Model"""
-  # def __init__(self, arg):
-  #   super(Model, self).__init__()
-  #   self.model_name = # Name of model
+import abc
+import sys
 
-  def grad_loss_no_reg(x, y):
-    # self.sess.run(grad_loss_no_reg_op, feed_dict={input_placeholder=x, label_placeholder=y})
-    # return gradient of loss
+import numpy as np
+import pandas as pd
+from sklearn import linear_model, preprocessing, cluster
 
-  def grad_total_loss(data, labels):
-    # compute the gradient of the total loss (w/ reg val) on the 
-    # input data w.r.t model parameters
+import scipy.linalg as slin
+import scipy.sparse.linalg as sparselin
+import scipy.sparse as sparse
+from scipy.optimize import fmin_ncg
 
-  def hessian_vector_product(train_dataset, vector):
-    # use total loss graph and parameters Tf.variables and multiply them by a vector
+import os.path
+import time
+from six.moves import xrange  # pylint: disable=redefined-builtin
+import tensorflow as tf
+from tensorflow.python.ops import array_ops
+from keras import backend as K
+from tensorflow.contrib.learn.python.learn.datasets import base
 
-  def params():
-    # return all the parameters in the model
+from influence.hessians import hessian_vector_product
+from influence.dataset import DataSet
 
-  def grad_influence_wrt_input(inverse_hvp, xTr, yTr):
-    # inverse_hvp is the product of:
-    # 1. The Hessian of the total training loss with respect to the parameters (P x P)
-    # 2. The gradient of the test loss with respect to the parameters (P x 1)
-    # xTr and yTr are the training points for which we get the perturbation influence.
-    # We do this by:
-    # 1. computing the product of inverse_hvp (P x 1) with the gradient of the loss of (xTr, yTr) w.r.t the parameters (P x 1)
-    # 2. Taking the gradient of the product w.r.t. xTr
-  
+from tensorflow.python.framework import ops
+from tensorflow.python.ops import array_ops
+from tensorflow.python.ops import math_ops
+
 # The average gradient of multiple test points' loss (to maximize mean loss for these test points)
 # This is done batch-wise
 # test_data.x -> N x X
 # test_data.label -> N x Y
 def get_test_grad_loss_no_reg_val(model, test_data, batch_size=100):
-  num_iter = int(np.ceil(len(test_data) / batch_size))
+  num_iter = int(np.ceil(len(test_data.x) / batch_size))
   final_result = None
   for i in range(num_iter):
       start = i * batch_size
-      end = int(min((i+1) * batch_size, len(test_data)))
-      grad_loss_value = model.grad_loss_no_reg(test_data.x[start:end], test_data.label[start:end])
+      end = int(min((i+1) * batch_size, len(test_data.x)))
+      grad_loss_value = model.grad_loss_no_reg(test_data.x[start:end], test_data.labels[start:end])
       if final_result is None:
           final_result = [next_gradient * (end-start) for next_gradient in grad_loss_value] # to undo the averaging 1/n of the loss's gradient
       else:
           final_result = [accumulated_gradient + next_gradient * (end-start) for (accumulated_gradient, next_gradient) in zip(final_result, grad_loss_value)]
-  final_result = [gradient/len(test_data) for gradient in final_result] # Re-apply the 1/n in the appropriate size
+  final_result = [gradient/len(test_data.x) for gradient in final_result] # Re-apply the 1/n in the appropriate size
   return final_result
 
 # product of hessian matrix of [model's loss on train_dataset with respect to parameters] with x 
 def minibatch_hessian_vector_val(x, model, train_dataset, batch_size = 100, damping=0):
-  num_iter = int(np.ceil(len(train_dataset) / batch_size))
-  train_dataset.reset_datasets()
+  num_iter = int(np.ceil(len(train_dataset.x) / batch_size))
   final_result = None
   for i in xrange(num_iter):
     start = i * batch_size
-    end = int(min((i+1) * batch_size, len(train_dataset)))
-    hvp_value = model.hessian_vector_product(train_dataset[start:end], x)
+    end = int(min((i+1) * batch_size, len(train_dataset.x)))
+    hvp_value = model.hessian_vector_product(train_dataset.x[start:end, :], train_dataset.labels[start:end], x)
     if final_result is None:
       final_result = [next_hvp / float(num_iter) for next_hvp in hvp_value]
     else:
@@ -102,7 +103,7 @@ def minibatch_hessian_vector_val(x, model, train_dataset, batch_size = 100, damp
 # to see what they are trying to do here
 # minibatch_hessian_vector_val(x, model, train_dataset, batch_size = 100, damping=0)
 def get_inverse_hvp_cg(model, train_data, gradients, verbose=True):
-  params_val = model.params
+  params_val = model.new_params()
   num_params = len(np.concatenate(params_val))        
   print('Total number of parameters: %s' % num_params)
   def vec_to_list(v):
@@ -113,7 +114,7 @@ def get_inverse_hvp_cg(model, train_data, gradients, verbose=True):
       cur_pos += len(p)
     assert cur_pos == len(v)
     return return_list
-  def get_fmin_hvp(self, x, p):
+  def get_fmin_hvp(x, p):
     hessian_vector_val = minibatch_hessian_vector_val(vec_to_list(p), model, train_data)
     return np.concatenate(hessian_vector_val)
   # return the loss function: .5 t^T * H * t - v^T * t
@@ -132,7 +133,7 @@ def get_inverse_hvp_cg(model, train_data, gradients, verbose=True):
       f=fmin_loss_fn,
       x0=np.concatenate(gradients),
       fprime=fmin_grad_fn,
-      fhess_p=self.get_fmin_hvp,
+      fhess_p=get_fmin_hvp,
       # callback=cg_callback,
       avextol=1e-8,
       maxiter=100) 

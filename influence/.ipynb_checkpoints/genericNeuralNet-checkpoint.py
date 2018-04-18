@@ -30,9 +30,6 @@ from tensorflow.python.framework import ops
 from tensorflow.python.ops import array_ops
 from tensorflow.python.ops import math_ops
 
-# from keras import backend as K
-
-# K.set_learning_phase(1) #set learning phase
 
 def variable(name, shape, initializer):
     dtype = tf.float32
@@ -879,7 +876,7 @@ class GenericNeuralNet(object):
             input_feed_dict = {
                         self.input_placeholder: train_x,
                         self.labels_placeholder: train_labels,
-                        # self.v_placeholder: v
+                        self.v_placeholder: v
                 }
             self.update_feed_dict_with_v_placeholder(input_feed_dict, v)
             return self.sess.run(self.hvp_op, feed_dict=input_feed_dict)
@@ -902,12 +899,11 @@ class GenericNeuralNet(object):
             return self.sess.run(self.grad_influence_wrt_input_op, feed_dict=input_feed_dict)[0][0,:]
 
     def grad_loss_no_reg(self, x, y):
+
             test_feed_dict = {
                     self.input_placeholder: x.reshape(len(x), -1),
-                    self.labels_placeholder: y.reshape(-1),
-                    K.learning_phase(): 0
+                    self.labels_placeholder: y.reshape(-1)
             }
-            # learning_phase = tf.constant(False)
             return self.sess.run(self.grad_loss_no_reg_op, feed_dict = test_feed_dict)
 
     def grad_total_loss(self, x, y):
