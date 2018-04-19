@@ -30,6 +30,13 @@ from tensorflow.python.framework import ops
 from tensorflow.python.ops import array_ops
 from tensorflow.python.ops import math_ops
 
+import logging
+FORMAT = "[%(filename)s:%(lineno)s - %(funcName)20s() ] %(message)s"
+logger = logging.getLogger()
+logging.basicConfig(format=FORMAT)
+logger.setLevel(logging.DEBUG)
+logging.debug("test")
+
 # from keras import backend as K
 
 # K.set_learning_phase(1) #set learning phase
@@ -183,7 +190,7 @@ class GenericNeuralNet(object):
     def get_vec_to_list_fn(self):
             params_val = self.sess.run(self.params)
             self.num_params = len(np.concatenate(params_val))
-            print('Total number of parameters: %s' % self.num_params)
+            logger.info('Total number of parameters: %s' % self.num_params)
 
 
             def vec_to_list(v):
@@ -320,15 +327,15 @@ class GenericNeuralNet(object):
                             [self.loss_no_reg, self.accuracy_op],
                             feed_dict=self.all_test_feed_dict)
 
-            print('Train loss (w reg) on all data: %s' % loss_val)
-            print('Train loss (w/o reg) on all data: %s' % loss_no_reg_val)
+            logger.info('Train loss (w reg) on all data: %s' % loss_val)
+            logger.info('Train loss (w/o reg) on all data: %s' % loss_no_reg_val)
 
-            print('Test loss (w/o reg) on all data: %s' % test_loss_val)
-            print('Train acc on all data:  %s' % train_acc_val)
-            print('Test acc on all data:   %s' % test_acc_val)
+            logger.info('Test loss (w/o reg) on all data: %s' % test_loss_val)
+            logger.info('Train acc on all data:  %s' % train_acc_val)
+            logger.info('Test acc on all data:   %s' % test_acc_val)
 
-            print('Norm of the mean of gradients: %s' % np.linalg.norm(np.concatenate(grad_loss_val)))
-            print('Norm of the params: %s' % np.linalg.norm(np.concatenate(params_val)))
+            logger.info('Norm of the mean of gradients: %s' % np.linalg.norm(np.concatenate(grad_loss_val)))
+            logger.info('Norm of the params: %s' % np.linalg.norm(np.concatenate(params_val)))
 
 
 
@@ -362,7 +369,7 @@ class GenericNeuralNet(object):
             """
             Trains a model for a specified number of steps.
             """
-            if verbose: print('Training for %s steps' % num_steps)
+            if verbose: logger.info('Training for %s steps' % num_steps)
 
             sess = self.sess
 
@@ -388,7 +395,7 @@ class GenericNeuralNet(object):
                     if verbose:
                             if step % 1000 == 0:
                                     # Print status to stdout.
-                                    print('Step %d: loss = %.8f (%.3f sec)' % (step, loss_val, duration))
+                                    logger.info('Step %d: loss = %.8f (%.3f sec)' % (step, loss_val, duration))
 
                     # Save a checkpoint and evaluate the model periodically.
                     if (step + 1) % 100000 == 0 or (step + 1) == num_steps:
@@ -401,7 +408,7 @@ class GenericNeuralNet(object):
             self.saver.restore(self.sess, checkpoint_to_load)
 
             if do_checks:
-                    print('Model %s loaded. Sanity checks ---' % checkpoint_to_load)
+                    logger.info('Model %s loaded. Sanity checks ---' % checkpoint_to_load)
                     self.print_model_eval()
 
 
@@ -668,7 +675,7 @@ class GenericNeuralNet(object):
 
             test_grad_loss_no_reg_val = self.get_test_grad_loss_no_reg_val(test_indices, loss_type=loss_type)
 
-            print('Norm of test gradient: %s' % np.linalg.norm(np.concatenate(test_grad_loss_no_reg_val)))
+            logger.info('Norm of test gradient: %s' % np.linalg.norm(np.concatenate(test_grad_loss_no_reg_val)))
 
             start_time = time.time()
 
@@ -678,17 +685,17 @@ class GenericNeuralNet(object):
             approx_filename = os.path.join(self.train_dir, '%s-%s-%s-test-%s.npz' % (self.model_name, approx_type, loss_type, test_description))
             if os.path.exists(approx_filename) and force_refresh == False:
                     inverse_hvp = list(np.load(approx_filename)['inverse_hvp'])
-                    print('Loaded inverse HVP from %s' % approx_filename)
+                    logger.info('Loaded inverse HVP from %s' % approx_filename)
             else:
                     inverse_hvp = self.get_inverse_hvp(
                             test_grad_loss_no_reg_val,
                             approx_type,
                             approx_params)
                     np.savez(approx_filename, inverse_hvp=inverse_hvp)
-                    print('Saved inverse HVP to %s' % approx_filename)
+                    logger.info('Saved inverse HVP to %s' % approx_filename)
 
             duration = time.time() - start_time
-            print('Inverse HVP took %s sec' % duration)
+            logger.info('Inverse HVP took %s sec' % duration)
 
 
 
@@ -710,7 +717,7 @@ class GenericNeuralNet(object):
                             predicted_loss_diffs[counter] = np.dot(np.concatenate(inverse_hvp), np.concatenate(train_grad_loss_val)) / self.num_train_examples
 
             duration = time.time() - start_time
-            print('Multiplying by %s train examples took %s sec' % (num_to_remove, duration))
+            logger.info('Multiplying by %s train examples took %s sec' % (num_to_remove, duration))
 
             return predicted_loss_diffs
 
@@ -731,13 +738,13 @@ class GenericNeuralNet(object):
             initial_v, _ = normalize_vector(initial_v)
 
             # Do power iteration to find largest eigenvalue
-            print('Starting power iteration to find largest eigenvalue...')
+            logger.info('Starting power iteration to find largest eigenvalue...')
 
             largest_eig = norm_val
-            print('Largest eigenvalue is %s' % largest_eig)
+            logger.info('Largest eigenvalue is %s' % largest_eig)
 
             # Do power iteration to find smallest eigenvalue
-            print('Starting power iteration to find smallest eigenvalue...')
+            logger.info('Starting power iteration to find smallest eigenvalue...')
             cur_estimate = initial_v
 
             for i in range(num_iter):
@@ -746,16 +753,16 @@ class GenericNeuralNet(object):
                     new_cur_estimate = [a - largest_eig * b for (a,b) in zip(hessian_vector_val, cur_estimate)]
 
                     if i % print_iterations == 0:
-                            print(-norm_val + largest_eig)
+                            logger.info(-norm_val + largest_eig)
                             dotp = np.dot(np.concatenate(new_cur_estimate), np.concatenate(cur_estimate))
-                            print("dot: %s" % dotp)
+                            logger.info("dot: %s" % dotp)
                     cur_estimate = new_cur_estimate
 
             smallest_eig = -norm_val + largest_eig
             assert dotp < 0, "Eigenvalue calc failed to find largest eigenvalue"
 
-            print('Largest eigenvalue is %s' % largest_eig)
-            print('Smallest eigenvalue is %s' % smallest_eig)
+            logger.info('Largest eigenvalue is %s' % largest_eig)
+            logger.info('Smallest eigenvalue is %s' % smallest_eig)
             return largest_eig, smallest_eig
 
 
@@ -773,7 +780,7 @@ class GenericNeuralNet(object):
             # Calculate v_placeholder (gradient of loss at test point)
             test_grad_loss_no_reg_val = self.get_test_grad_loss_no_reg_val(test_indices, loss_type=loss_type)
 
-            if verbose: print('Norm of test gradient: %s' % np.linalg.norm(np.concatenate(test_grad_loss_no_reg_val)))
+            if verbose: logger.info('Norm of test gradient: %s' % np.linalg.norm(np.concatenate(test_grad_loss_no_reg_val)))
 
             start_time = time.time()
 
@@ -784,7 +791,7 @@ class GenericNeuralNet(object):
 
             if os.path.exists(approx_filename) and force_refresh == False:
                     inverse_hvp = list(np.load(approx_filename)['inverse_hvp'])
-                    if verbose: print('Loaded inverse HVP from %s' % approx_filename)
+                    if verbose: logger.info('Loaded inverse HVP from %s' % approx_filename)
             else:
                     inverse_hvp = self.get_inverse_hvp(
                             test_grad_loss_no_reg_val,
@@ -792,10 +799,10 @@ class GenericNeuralNet(object):
                             approx_params,
                             verbose=verbose)
                     np.savez(approx_filename, inverse_hvp=inverse_hvp)
-                    if verbose: print('Saved inverse HVP to %s' % approx_filename)
+                    if verbose: logger.info('Saved inverse HVP to %s' % approx_filename)
 
             duration = time.time() - start_time
-            if verbose: print('Inverse HVP took %s sec' % duration)
+            if verbose: logger.info('Inverse HVP took %s sec' % duration)
 
             grad_influence_wrt_input_val = None
 
@@ -804,7 +811,9 @@ class GenericNeuralNet(object):
                     grad_influence_feed_dict = self.fill_feed_dict_with_one_ex(
                             self.data_sets.train,
                             train_idx)
-
+                    
+                    logger.info("Looping over training indices. Counter: {}, train_idx: {}".format(counter, train_idx))
+                    
                     self.update_feed_dict_with_v_placeholder(grad_influence_feed_dict, inverse_hvp)
 
                     # Run the grad op with the feed dict
@@ -885,7 +894,7 @@ class GenericNeuralNet(object):
             self.update_feed_dict_with_v_placeholder(input_feed_dict, v)
             return self.sess.run(self.hvp_op, feed_dict=input_feed_dict)
 
-    def grad_influence_wrt_input(inverse_hvp, xTr, yTr):
+    def grad_influence_wrt_input(self, inverse_hvp, xTr, yTr):
             # inverse_hvp is the product of:
             #   1. The inverse Hessian of the total training loss with respect to the parameters (P x P)
             #   2. The gradient of the test loss with respect to the parameters (P x 1)
@@ -899,7 +908,7 @@ class GenericNeuralNet(object):
                     self.labels_placeholder: yTr,
                     K.learning_phase(): 0
             }
-            print("calculating grad_influence_wrt_input")
+            logger.info("calculating grad_influence_wrt_input")
             self.update_feed_dict_with_v_placeholder(input_feed_dict, inverse_hvp)
             return self.sess.run(self.grad_influence_wrt_input_op, feed_dict=input_feed_dict)[0][0,:]
 
@@ -916,7 +925,6 @@ class GenericNeuralNet(object):
             train_feed_dict = {
                     self.input_placeholder: x.reshape(1, -1),
                     self.labels_placeholder: y.reshape(-1)
-                    K.learning_phase(): 0
             }
             return self.sess.run(self.grad_total_loss_op, feed_dict = train_feed_dict)
 

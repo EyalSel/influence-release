@@ -30,6 +30,13 @@ from tensorflow.python.framework import ops
 from tensorflow.python.ops import array_ops
 from tensorflow.python.ops import math_ops
 
+import logging
+FORMAT = "[%(filename)s:%(lineno)s - %(funcName)20s() ] %(message)s"
+logger = logging.getLogger()
+logging.basicConfig(format=FORMAT)
+logger.setLevel(logging.DEBUG)
+logging.debug("test")
+
 # The average gradient of multiple test points' loss (to maximize mean loss for these test points)
 # This is done batch-wise
 # test_data.x -> N x X
@@ -221,6 +228,7 @@ def get_grad_of_influence_wrt_input(model,
   print("Entering the for loop")
   for counter, idx_to_remove in enumerate(train_idx):
       # Take the derivative of the influence w.r.t input
+      logger.info("Looping over training points. Counter: {}, idx_to_remove: {}".format(counter, idx_to_remove))
       current_grad_influence_wrt_input_val = model.grad_influence_wrt_input(inverse_hvp, 
                                                       train_data.x[idx_to_remove, :].reshape(1, -1),
                                                       train_data.labels[idx_to_remove].reshape(-1))

@@ -15,6 +15,13 @@ import tensorflow as tf
 from tensorflow.contrib.learn.python.learn.datasets import base
 from influence.Progress import *
 
+import logging
+FORMAT = "[%(filename)s:%(lineno)s - %(funcName)20s() ] %(message)s"
+logger = logging.getLogger()
+logging.basicConfig(format=FORMAT)
+logger.setLevel(logging.DEBUG)
+logging.debug("test")
+
 def get_projection_to_box_around_orig_point(X_orig, box_radius_in_pixels=0.5):
 	box_radius_in_float = box_radius_in_pixels * 2.0 / 255.0
 
@@ -54,7 +61,7 @@ def poison_with_influence_proj_gradient_step(indices_to_poison, grad_influence_w
 	poisoned_X_train_subset = project_fn(
 		train_dataset.x[indices_to_poison, :] - step_size * np.sign(grad_influence_wrt_input_val_subset) * 2.0 / 255.0)
 
-	print('-- max: %s, mean: %s, min: %s' % (
+	logger.info('-- max: %s, mean: %s, min: %s' % (
 		np.max(grad_influence_wrt_input_val_subset),
 		np.mean(grad_influence_wrt_input_val_subset),
 		np.min(grad_influence_wrt_input_val_subset)))
@@ -70,7 +77,7 @@ def generate_inception_features(model, poisoned_X_train_subset, labels_subset, b
 	assert len(poisoned_X_train_subset) % batch_size == 0
 	num_iter = int(len(poisoned_X_train_subset) / batch_size)
 
-	poisoned_data_sets.train.reset_batch()
+	poisoned_train.reset_batch()
 
 	inception_features_val = []
 	for i in xrange(num_iter):
@@ -82,7 +89,7 @@ def generate_inception_features(model, poisoned_X_train_subset, labels_subset, b
 
 def iterative_attack(
 	top_model, full_model, top_graph, full_graph, project_fn, test_indices, test_description, 
-	train_dataset, test_dataset, 
+	train_dataset, test_dataset, dataset_name,
 	indices_to_poison=None,
 	num_iter=10,
 	step_size=1,
@@ -100,8 +107,8 @@ def iterative_attack(
 	top_model_name = top_model.model_name
 	full_model_name = full_model.model_name
 
-	print('Test idx: %s' % test_indices)
-	print('Indices to poison: %s' % indices_to_poison)
+	logger.info('Test idx: %s' % test_indices)
+	logger.info('Indices to poison: %s' % indices_to_poison)
 
 	# Remove everything but the poisoned train indices from the full model, to save time 
 
@@ -115,9 +122,9 @@ def iterative_attack(
 	validation = None
 
 	for attack_iter in range(num_iter):
-		print('*** Iter: %s' % attack_iter)
+		logger.info('*** Iter: %s' % attack_iter)
 		
-		print('Calculating grad...')
+		logger.info('Calculating grad...')
 
 		# Use top model to quickly generate inverse HVP
 		with top_graph.as_default():
@@ -129,9 +136,9 @@ def iterative_attack(
 		# Use full model to get gradient wrt pixels
 		with full_graph.as_default():
 			grad_influence_wrt_input_val_subset =  get_grad_of_influence_wrt_input(full_model, 
-													test_data, indices_to_poison, train_data, 
+													test_dataset, indices_to_poison, train_dataset, 
 													test_description,
-													force_refresh=True)
+													force_refresh=False)
    
 			poisoned_X_train_subset = poison_with_influence_proj_gradient_step(
 				indices_to_poison,
@@ -141,11 +148,11 @@ def iterative_attack(
 				train_dataset)
 
 		with full_graph.as_default():
-			inception_X_train[indices_to_poison] = generate_inception_features(full_model, poisoned_X_train_subset, labels_subset)
+			inception_X_train.x[indices_to_poison, :] = generate_inception_features(full_model, poisoned_X_train_subset, labels_subset)
 
 
 		with top_graph.as_default():
-			weights = top_model.retrain_and_get_weights(inception_X_train, train_dataset.labels)
+			weights = top_model.retrain_and_get_weights(inception_X_train.x, inception_X_train.labels)
 			weight_path = 'output/inception_weights_%s_attack_testidx-%s.npy' % (top_model_name, test_description)
 			np.save(weight_path, weights)
 		with full_graph.as_default():            
@@ -154,16 +161,17 @@ def iterative_attack(
 		# Print out attack effectiveness if it's not too expensive
 		test_pred = None
 		if len(test_indices) < 100:
+            print("test_indices", test_indices)
 			with full_graph.as_default():
 				test_pred = full_model.get_preds(test_dataset, test_indices)
-				print('Test pred (full): %s' % test_pred)
+				logger.info('Test pred (full): %s' % test_pred)
 			with top_graph.as_default():
-				test_pred = top_model.get_preds(test_dataset, test_indices)
-				print('Test pred (top): %s' % test_pred)
+				test_pred = top_model.get_preds(inception_X_test, test_indices)
+				logger.info('Test pred (top): %s' % test_pred)
 
 			if ((early_stop is not None) and (len(test_indices) == 1)):
 				if test_pred[0, int(test_dataset.labels[test_indices])] < early_stop:
-					print('Successfully attacked. Saving and breaking...')
+					logger.info('Successfully attacked. Saving and breaking...')
 					np.savez('output/%s_attack_testidx-%s_trainidx-%s_stepsize-%s_proj_final' % (full_model.model_name, test_description, train_idx_str, step_size), 
 						poisoned_X_train_image=train_dataset[indices_to_poison], 
 						poisoned_X_train_inception_features=inception_X_train[indices_to_poison],

@@ -254,7 +254,7 @@ def load_dogfish_with_koda():
 
     return base.Datasets(train=train, validation=validation, test=test)
 
-def new_load_dogfish_with_koda():        
+def new_load_dogfish_with_koda(num_train_ex, num_test_ex):        
     classes = ['dog', 'fish']
     
     num_channels = 3
@@ -265,10 +265,20 @@ def new_load_dogfish_with_koda():
     if os.path.exists(data_filename):
         print('Loading Koda from disk...')
         f = np.load(data_filename)
-        X_test = f['X_test']
-        Y_test = f['Y_test']
-        X_train = f['X_train']
-        Y_train = f['Y_train']
+        
+        train_idx = np.arange(len(f['X_train']))
+        # print(train_idx)
+        np.random.shuffle(train_idx)
+        # print(train_idx)
+
+        test_idx = np.arange(len(f['X_test']))
+        np.random.shuffle(test_idx)
+    
+        X_test = f['X_test'][test_idx][:num_test_ex]
+        Y_test = f['Y_test'][test_idx][:num_test_ex]
+        X_train = f['X_train'][train_idx][:num_train_ex]
+        Y_train = f['Y_train'][train_idx][:num_train_ex]
+        
     else:
         print("???")
 
