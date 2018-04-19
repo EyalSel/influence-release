@@ -1,3 +1,20 @@
+import IPython
+import numpy as np
+
+import os
+import time
+from shutil import copyfile
+
+from influence.inceptionModel import BinaryInceptionModel
+from influence.binaryLogisticRegressionWithLBFGS import BinaryLogisticRegressionWithLBFGS
+import influence.experiments
+from influence.dataset import DataSet
+
+import tensorflow as tf
+
+from tensorflow.contrib.learn.python.learn.datasets import base
+from influence.Progress import *
+
 def get_projection_to_box_around_orig_point(X_orig, box_radius_in_pixels=0.5):
 	box_radius_in_float = box_radius_in_pixels * 2.0 / 255.0
 

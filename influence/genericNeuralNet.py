@@ -880,6 +880,7 @@ class GenericNeuralNet(object):
                         self.input_placeholder: train_x,
                         self.labels_placeholder: train_labels,
                         # self.v_placeholder: v
+                        K.learning_phase(): 0
                 }
             self.update_feed_dict_with_v_placeholder(input_feed_dict, v)
             return self.sess.run(self.hvp_op, feed_dict=input_feed_dict)
@@ -896,8 +897,9 @@ class GenericNeuralNet(object):
             input_feed_dict = {
                     self.input_placeholder: xTr,
                     self.labels_placeholder: yTr,
+                    K.learning_phase(): 0
             }
-
+            print("calculating grad_influence_wrt_input")
             self.update_feed_dict_with_v_placeholder(input_feed_dict, inverse_hvp)
             return self.sess.run(self.grad_influence_wrt_input_op, feed_dict=input_feed_dict)[0][0,:]
 
@@ -914,6 +916,7 @@ class GenericNeuralNet(object):
             train_feed_dict = {
                     self.input_placeholder: x.reshape(1, -1),
                     self.labels_placeholder: y.reshape(-1)
+                    K.learning_phase(): 0
             }
             return self.sess.run(self.grad_total_loss_op, feed_dict = train_feed_dict)
 
