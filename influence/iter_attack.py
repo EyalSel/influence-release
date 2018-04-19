@@ -19,7 +19,7 @@ import logging
 FORMAT = "[%(filename)s:%(lineno)s - %(funcName)20s() ] %(message)s"
 logger = logging.getLogger()
 logging.basicConfig(format=FORMAT)
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 logging.debug("test")
 
 def get_projection_to_box_around_orig_point(X_orig, box_radius_in_pixels=0.5):
@@ -43,17 +43,17 @@ def get_projection_to_box_around_orig_point(X_orig, box_radius_in_pixels=0.5):
 	return project_fn
 
 
-def select_examples_to_attack(model, num_to_poison, grad_influence_wrt_input_val, step_size):
+def select_examples_to_attack(model, num_to_poison, influence_on_test_loss_val, step_size):
 
-	# diffs = model.data_sets.train.x - np.clip(model.data_sets.train.x - step_size * np.sign(grad_influence_wrt_input_val) * 2.0 / 255.0, -1, 1) 
-	# pred_diff = np.sum(diffs * grad_influence_wrt_input_val, axis = 1)    
-	# This ignores the clipping, but it's faster    
-	pred_diff = np.sum(np.abs(grad_influence_wrt_input_val), axis = 1)
+	# diffs = model.data_sets.train.x - np.clip(model.data_sets.train.x - step_size * np.sign(influence_on_test_loss_val) * 2.0 / 255.0, -1, 1) 
+	# pred_diff = np.sum(diffs * influence_on_test_loss_val, axis = 1)		
+	# This ignores the clipping, but it's faster		
+	pred_diff = np.abs(influence_on_test_loss_val)
 	indices_to_poison = np.argsort(pred_diff)[-1:-num_to_poison-1:-1] # First index is the most effective
 	return indices_to_poison
 
 def poison_with_influence_proj_gradient_step(indices_to_poison, grad_influence_wrt_input_val_subset, 
-						step_size, project_fn, train_dataset):    
+						step_size, project_fn, train_dataset):		
 	"""
 	Returns poisoned_X_train, a subset of model.data_sets.train (marked by indices_to_poison)
 	that has been modified by a single gradient step.
@@ -69,7 +69,7 @@ def poison_with_influence_proj_gradient_step(indices_to_poison, grad_influence_w
 	return poisoned_X_train_subset
 
 def generate_inception_features(model, poisoned_X_train_subset, labels_subset, batch_size=None):
-	poisoned_train = DataSet(poisoned_X_train_subset, labels_subset)    
+	poisoned_train = DataSet(poisoned_X_train_subset, labels_subset)		
 
 	if batch_size == None:
 		batch_size = len(labels_subset)
@@ -94,7 +94,7 @@ def iterative_attack(
 	num_iter=10,
 	step_size=1,
 	save_iter=1,
-	early_stop=None):   
+	early_stop=None):	 
 
 	if early_stop is not None:
 		assert len(test_indices) == 1, 'Early stopping only supported for attacks on a single test index.'
@@ -106,13 +106,13 @@ def iterative_attack(
 
 	top_model_name = top_model.model_name
 	full_model_name = full_model.model_name
-
-	logger.info('Test idx: %s' % test_indices)
-	logger.info('Indices to poison: %s' % indices_to_poison)
-
+	
 	# Remove everything but the poisoned train indices from the full model, to save time 
-
 	labels_subset = train_dataset.labels[indices_to_poison]
+
+	logger.info('Test idx: {}, Indices to poison: {}, Labels subset: {}'.format(test_indices, indices_to_poison, labels_subset))
+	print("")
+	
 
 	train_f = np.load('output/%s_inception_features_new_train.npz' % dataset_name)
 	inception_X_train = DataSet(train_f['inception_features_val'], train_f['labels'])
@@ -123,45 +123,52 @@ def iterative_attack(
 
 	for attack_iter in range(num_iter):
 		logger.info('*** Iter: %s' % attack_iter)
-		
-		logger.info('Calculating grad...')
-
+		logger.debug('Calculating perturbation...')
 		# Use top model to quickly generate inverse HVP
 		with top_graph.as_default():
 			get_hvp(top_model, inception_X_test, inception_X_train, test_description, True)
+		
 		copyfile(
 			'output/%s-test-%s.npz' % (top_model_name, test_description),
 			'output/%s-test-%s.npz' % (full_model_name, test_description))
 
 		# Use full model to get gradient wrt pixels
 		with full_graph.as_default():
-			grad_influence_wrt_input_val_subset =  get_grad_of_influence_wrt_input(full_model, 
+			# Calculate the pertubation
+			grad_influence_wrt_input_val_subset = get_grad_of_influence_wrt_input(full_model, 
 													test_dataset, indices_to_poison, train_dataset, 
 													test_description,
 													force_refresh=False)
-   
+			logger.info("Attach_iter {} perturbation shape: {}, perturbation: {}".format(attack_iter, grad_influence_wrt_input_val_subset.shape, grad_influence_wrt_input_val_subset))
+
+			# New poisoned (raw - images) dataset after this iteration's pertubations
 			poisoned_X_train_subset = poison_with_influence_proj_gradient_step(
 				indices_to_poison,
 				grad_influence_wrt_input_val_subset,
 				step_size,
 				project_fn, 
 				train_dataset)
+				
+				# Update raw-image training dataset with poison
+			train_dataset.x[indices_to_poison, :] = poisoned_X_train_subset
 
 		with full_graph.as_default():
+			# We update the cached inception features for the raw-image input with the poisoned version
 			inception_X_train.x[indices_to_poison, :] = generate_inception_features(full_model, poisoned_X_train_subset, labels_subset)
 
 
 		with top_graph.as_default():
+			# retrain top model on new inception features for poisoned dataset
 			weights = top_model.retrain_and_get_weights(inception_X_train.x, inception_X_train.labels)
 			weight_path = 'output/inception_weights_%s_attack_testidx-%s.npy' % (top_model_name, test_description)
 			np.save(weight_path, weights)
-		with full_graph.as_default():            
+		with full_graph.as_default():
 			full_model.load_weights_from_disk(weight_path, do_save=False, do_check=False)
 
 		# Print out attack effectiveness if it's not too expensive
 		test_pred = None
 		if len(test_indices) < 100:
-            print("test_indices", test_indices)
+			#print("test_indices", test_indices)
 			with full_graph.as_default():
 				test_pred = full_model.get_preds(test_dataset, test_indices)
 				logger.info('Test pred (full): %s' % test_pred)
@@ -172,6 +179,7 @@ def iterative_attack(
 			if ((early_stop is not None) and (len(test_indices) == 1)):
 				if test_pred[0, int(test_dataset.labels[test_indices])] < early_stop:
 					logger.info('Successfully attacked. Saving and breaking...')
+					# Exact same save code as below (Except for attach_iter)
 					np.savez('output/%s_attack_testidx-%s_trainidx-%s_stepsize-%s_proj_final' % (full_model.model_name, test_description, train_idx_str, step_size), 
 						poisoned_X_train_image=train_dataset[indices_to_poison], 
 						poisoned_X_train_inception_features=inception_X_train[indices_to_poison],
@@ -179,10 +187,11 @@ def iterative_attack(
 						indices_to_poison=indices_to_poison,
 						attack_iter=attack_iter + 1,
 						test_pred=test_pred,
-						step_size=step_size)            
+						step_size=step_size)
 					return True
 
 		if (attack_iter+1) % save_iter == 0:
+			# Exact same save code as above (Except for attach_iter)
 			np.savez('output/%s_attack_testidx-%s_trainidx-%s_stepsize-%s_proj_iter-%s' % (full_model.model_name, test_description, train_idx_str, step_size, attack_iter+1), 
 				poisoned_X_train_image=train_dataset[indices_to_poison], 
 				poisoned_X_train_inception_features=inception_X_train[indices_to_poison],

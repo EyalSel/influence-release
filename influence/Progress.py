@@ -34,7 +34,7 @@ import logging
 FORMAT = "[%(filename)s:%(lineno)s - %(funcName)20s() ] %(message)s"
 logger = logging.getLogger()
 logging.basicConfig(format=FORMAT)
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 logging.debug("test")
 
 # The average gradient of multiple test points' loss (to maximize mean loss for these test points)
@@ -151,7 +151,7 @@ def get_hvp(model,
             test_description, force_refresh=True):
   # returns a list of gradients of size P (to represent P parameters in the model)
   test_grad_loss_no_reg_val = get_test_grad_loss_no_reg_val(model, test_data)
-  print('Norm of test gradient: %s' % np.linalg.norm(np.concatenate(test_grad_loss_no_reg_val)))
+  logger.debug('Norm of test gradient: %s' % np.linalg.norm(np.concatenate(test_grad_loss_no_reg_val)))
 
   # The approximation of the product (Hession matrix & gradients of test loss) is 
   # by the Conjugate Gradiant approximation and the result is stored so that 
@@ -160,11 +160,11 @@ def get_hvp(model,
   approximation_filename = os.path.join(model.train_dir, '%s-test-%s.npz' % (model.model_name, test_description))
   if os.path.exists(approximation_filename) and force_refresh == False:
       inverse_hvp = list(np.load(approximation_filename)['inverse_hvp'])
-      print('Loaded inverse HVP from %s' % approximation_filename)
+      logger.debug('Loaded inverse HVP from %s' % approximation_filename)
   else:
       inverse_hvp = get_inverse_hvp_cg(model, train_data, test_grad_loss_no_reg_val)
       np.savez(approximation_filename, inverse_hvp=inverse_hvp)
-      print('Saved inverse HVP to %s' % approximation_filename)
+      logger.debug('Saved inverse HVP to %s' % approximation_filename)
   duration = time.time() - start_time
   print('Inverse HVP took %s sec' % duration)
   return inverse_hvp
@@ -187,7 +187,7 @@ def get_influence_on_test_loss(model,
     train_grad_loss_val = model.grad_total_loss(train_data.x[idx_to_remove, :].reshape(1, -1),
                                                 train_data.labels[idx_to_remove].reshape(-1))
     predicted_loss_diffs[counter] = np.dot(np.concatenate(inverse_hvp), 
-                                           np.concatenate(train_grad_loss_val)) / len(train_data)
+                                           np.concatenate(train_grad_loss_val)) / len(train_data.x)
   duration = time.time() - start_time
   print('Multiplying by %s train examples took %s sec' % (num_to_remove, duration))
 

@@ -27,6 +27,12 @@ from keras.layers import AveragePooling2D
 from keras.utils.data_utils import get_file
 from keras import backend as K
 
+import logging
+FORMAT = "[%(filename)s:%(lineno)s - %(funcName)20s() ] %(message)s"
+logger = logging.getLogger()
+logging.basicConfig(format=FORMAT)
+logger.setLevel(logging.INFO)
+logging.debug("test")
 
 class BinaryInceptionModel(GenericNeuralNet):
 
@@ -259,10 +265,10 @@ class BinaryInceptionModel(GenericNeuralNet):
         assert X_train.shape[0] == Y_train.shape[0]
 
         if num_train_examples == self.num_train_examples:
-            print('Using normal model')
+            logger.debug('Using normal model')
             model = self.sklearn_model
         elif num_train_examples == self.num_train_examples - 1:
-            print('Using model minus one')
+            logger.debug('Using model minus one')
             model = self.sklearn_model_minus_one
         else:
             raise ValueError, "feed_dict has incorrect number of training examples"
@@ -282,8 +288,8 @@ class BinaryInceptionModel(GenericNeuralNet):
         if save_checkpoints: self.saver.save(self.sess, self.checkpoint_file, global_step=0)
 
         if verbose:
-            print('LBFGS training took %s iter.' % model.n_iter_)
-            print('After training with LBFGS: ')
+            logger.debug('LBFGS training took %s iter.' % model.n_iter_)
+            logger.debug('After training with LBFGS: ')
             self.print_model_eval()
 
 
@@ -295,14 +301,14 @@ class BinaryInceptionModel(GenericNeuralNet):
         self.sess.run(self.set_params_op, feed_dict=params_feed_dict)
         if do_save: self.saver.save(self.sess, self.checkpoint_file, global_step=0)  
 
-        print('Loaded weights from disk.')
+        logger.debug('Loaded weights from disk.')
         if do_check: self.print_model_eval()
 
 
     def get_hessian(self):
 
         H = self.sess.run(self.hessians_op)
-        print(H.shape)
+        logger.debug(H.shape)
 
         # Maybe update Hessian every time main train routine is called?
 

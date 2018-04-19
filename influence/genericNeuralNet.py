@@ -34,7 +34,7 @@ import logging
 FORMAT = "[%(filename)s:%(lineno)s - %(funcName)20s() ] %(message)s"
 logger = logging.getLogger()
 logging.basicConfig(format=FORMAT)
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 logging.debug("test")
 
 # from keras import backend as K
@@ -118,7 +118,7 @@ class GenericNeuralNet(object):
                     os.makedirs(self.train_dir)
 
             # Initialize session
-            config = tf.ConfigProto()
+            config = tf.ConfigProto(log_device_placement=True)
             self.sess = tf.Session(config=config)
             K.set_session(self.sess)
 
@@ -924,7 +924,8 @@ class GenericNeuralNet(object):
     def grad_total_loss(self, x, y):
             train_feed_dict = {
                     self.input_placeholder: x.reshape(1, -1),
-                    self.labels_placeholder: y.reshape(-1)
+                    self.labels_placeholder: y.reshape(-1),
+					K.learning_phase(): 0
             }
             return self.sess.run(self.grad_total_loss_op, feed_dict = train_feed_dict)
 

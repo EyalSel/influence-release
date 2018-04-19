@@ -23,6 +23,12 @@ from influence.hessians import hessians
 from influence.genericNeuralNet import GenericNeuralNet, variable, variable_with_weight_decay
 from influence.logisticRegressionWithLBFGS import LogisticRegressionWithLBFGS
 
+import logging
+FORMAT = "[%(filename)s:%(lineno)s - %(funcName)20s() ] %(message)s"
+logger = logging.getLogger()
+logging.basicConfig(format=FORMAT)
+logger.setLevel(logging.INFO)
+logging.debug("test")
 
 class BinaryLogisticRegressionWithLBFGS(LogisticRegressionWithLBFGS):
 
@@ -83,6 +89,7 @@ class BinaryLogisticRegressionWithLBFGS(LogisticRegressionWithLBFGS):
 		ignore_training_error=False,
 		ignore_hessian=False
 		):
+		logger.warn("Using get_influence_on_test_loss from binary logistic regression LBFGS")
 
 		test_grad_loss_no_reg_val = self.get_test_grad_loss_no_reg_val(test_indices, loss_type=loss_type)
 
@@ -126,7 +133,7 @@ class BinaryLogisticRegressionWithLBFGS(LogisticRegressionWithLBFGS):
 			predicted_loss_diffs[counter] = np.dot(np.concatenate(inverse_hvp), np.concatenate(train_grad_loss_val)) / self.num_train_examples
 			
 		duration = time.time() - start_time
-		print('Multiplying by %s train examples took %s sec' % (num_to_remove, duration))
+		# logger.info('Multiplying by %s train examples took %s sec' % (num_to_remove, duration))
 
 		return predicted_loss_diffs
 
