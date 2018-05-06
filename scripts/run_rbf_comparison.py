@@ -41,22 +41,22 @@ def get_Y_pred_correct_inception(model):
     return Y_pred_correct
 
 
-num_classes = 2
-num_train_ex_per_class = 900
-num_test_ex_per_class = 300
+num_classes = 3
+num_train_ex_per_class = 500
+num_test_ex_per_class = 50
 
-dataset_name = 'dogfish_%s_%s' % (num_train_ex_per_class, num_test_ex_per_class)
+dataset_name = 'multiclass_%s_%s' % (num_train_ex_per_class, num_test_ex_per_class)
 image_data_sets = load_animals(
     num_train_ex_per_class=num_train_ex_per_class, 
     num_test_ex_per_class=num_test_ex_per_class,
-    classes=['dog', 'fish'])
+    classes=['Eagle', 'Mushroom', 'Snail'])
 
 ### Generate kernelized feature vectors
 X_train = image_data_sets.train.x
 X_test = image_data_sets.test.x
 
-Y_train = np.copy(image_data_sets.train.labels) * 2 - 1
-Y_test = np.copy(image_data_sets.test.labels) * 2 - 1
+Y_train = np.copy(image_data_sets.train.labels)
+Y_test = np.copy(image_data_sets.test.labels)
 
 num_train = X_train.shape[0]
 num_test = X_test.shape[0]
@@ -66,15 +66,21 @@ X_stacked = np.vstack((X_train, X_test))
 gamma = 0.05
 weight_decay = 0.0001
 
+eps = 0.01
 K = rbf_kernel(X_stacked, gamma = gamma / num_train)
+K[np.diag_indices_from(K)] += eps
+# print(len([x for x in np.linalg.eigvalsh(K) if x < 0]))
+# print(np.linalg.eigvalsh(K))
 
 L = slin.cholesky(K, lower=True)
+#dimensionality reduction of features depends on #of training img
 L_train = L[:num_train, :num_train]
 L_test = L[num_train:, :num_train]
 
 ### Compare top 5 influential examples from each network
 
-test_idx = 462
+test_idx = 5
+# num_classes = 3
 
 ## RBF
 
@@ -90,12 +96,15 @@ decay_epochs = [1000, 10000]
 tf.reset_default_graph()
 
 X_train = image_data_sets.train.x
-Y_train = image_data_sets.train.labels * 2 - 1
+Y_train = image_data_sets.train.labels
 train = DataSet(L_train, Y_train)
 test = DataSet(L_test, Y_test)
 
 data_sets = base.Datasets(train=train, validation=None, test=test)
 input_dim = data_sets.train.x.shape[1]
+
+# print("input dim", input_dim)
+# prnt(data_sets.train.x.shape)
 
 # Train with hinge
 rbf_model = SmoothHinge(
@@ -112,7 +121,7 @@ rbf_model = SmoothHinge(
     mini_batch=False,
     train_dir='output',
     log_dir='log',
-    model_name='dogfish_rbf_hinge_t-0')
+    model_name='multiclass_rbf_hinge_t-0')
     
 rbf_model.train()
 hinge_W = rbf_model.sess.run(rbf_model.params)[0]
@@ -133,7 +142,7 @@ rbf_model = SmoothHinge(
     mini_batch=False,
     train_dir='output',
     log_dir='log',
-    model_name='dogfish_rbf_hinge_t-0.001')
+    model_name='multiclass_rbf_hinge_t-0.001')
 
 params_feed_dict = {}
 params_feed_dict[rbf_model.W_placeholder] = hinge_W
@@ -147,13 +156,13 @@ rbf_predicted_loss_diffs = rbf_model.get_influence_on_test_loss(
 
 ## Inception
 
-dataset_name = 'dogfish_900_300'
+dataset_name = 'multiclass_500_50'
 
 # Generate inception features
 img_side = 299
 num_channels = 3
-num_train_ex_per_class = 900
-num_test_ex_per_class = 300
+num_train_ex_per_class = 500
+num_test_ex_per_class = 50
 batch_size = 100
 
 
@@ -174,28 +183,33 @@ full_model = BinaryInceptionModel(
     log_dir='log',
     model_name=full_model_name)
 
-train_inception_features_val = generate_inception_features(
-    full_model, 
-    image_data_sets.train.x, 
-    image_data_sets.train.labels, 
-    batch_size=batch_size)        
-test_inception_features_val = generate_inception_features(
-    full_model, 
-    image_data_sets.test.x, 
-    image_data_sets.test.labels, 
-    batch_size=batch_size)  
+# train_inception_features_val = generate_inception_features(
+#     full_model, 
+#     image_data_sets.train.x, 
+#     image_data_sets.train.labels, 
+#     batch_size=batch_size)        
+# test_inception_features_val = generate_inception_features(
+#     full_model, 
+#     image_data_sets.test.x, 
+#     image_data_sets.test.labels, 
+#     batch_size=batch_size)  
 
-train = DataSet(
-    train_inception_features_val,
-    image_data_sets.train.labels)
-test = DataSet(
-    test_inception_features_val,
-    image_data_sets.test.labels)
+# train = DataSet(
+#     train_inception_features_val,
+#     image_data_sets.train.labels)
+# test = DataSet(
+#     test_inception_features_val,
+#     image_data_sets.test.labels)
 
 # train_f = np.load('output/%s_inception_features_new_train.npz' % dataset_name)
 # train = DataSet(train_f['inception_features_val'], train_f['labels'])
 # test_f = np.load('output/%s_inception_features_new_test.npz' % dataset_name)
 # test = DataSet(test_f['inception_features_val'], test_f['labels'])
+
+train_f = np.load('output/%s_inception_features_new_train.npz' % dataset_name)
+inception_X_train = DataSet(train_f['inception_features_val'], train_f['labels'])
+test_f = np.load('output/%s_inception_features_new_test.npz' % dataset_name)
+inception_X_test = DataSet(test_f['inception_features_val'], test_f['labels'])
 
 validation = None
 
@@ -216,7 +230,7 @@ initial_learning_rate = 0.001
 keep_probs = None
 decay_epochs = [1000, 10000]
 max_lbfgs_iter = 1000
-num_classes = 2
+num_classes = 3
 
 tf.reset_default_graph()
 
@@ -246,8 +260,8 @@ x_test = X_test[test_idx, :]
 y_test = Y_test[test_idx]
 
 
-distances = dataset.find_distances(x_test, X_train)
-flipped_idx = Y_train != y_test
+# distances = dataset.find_distances(x_test, X_train)
+# flipped_idx = Y_train != y_test
 rbf_margins_test = rbf_model.sess.run(rbf_model.margin, feed_dict=rbf_model.all_test_feed_dict)
 rbf_margins_train = rbf_model.sess.run(rbf_model.margin, feed_dict=rbf_model.all_train_feed_dict)
 inception_Y_pred_correct = get_Y_pred_correct_inception(inception_model)
@@ -256,8 +270,8 @@ inception_Y_pred_correct = get_Y_pred_correct_inception(inception_model)
 np.savez(
     'output/rbf_results', 
     test_idx=test_idx,
-    distances=distances,
-    flipped_idx=flipped_idx,
+    # distances=distances,
+    # flipped_idx=flipped_idx,
     rbf_margins_test=rbf_margins_test,
     rbf_margins_train=rbf_margins_train,
     inception_Y_pred_correct=inception_Y_pred_correct,

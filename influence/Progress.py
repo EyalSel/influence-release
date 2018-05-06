@@ -1,7 +1,7 @@
 from __future__ import division
 from __future__ import print_function
 from __future__ import absolute_import
-from __future__ import unicode_literals  
+from __future__ import unicode_literals
 
 import abc
 import sys
@@ -55,7 +55,7 @@ def get_test_grad_loss_no_reg_val(model, test_data, batch_size=100):
   final_result = [gradient/len(test_data.x) for gradient in final_result] # Re-apply the 1/n in the appropriate size
   return final_result
 
-# product of hessian matrix of [model's loss on train_dataset with respect to parameters] with x 
+# product of hessian matrix of [model's loss on train_dataset with respect to parameters] with x
 def minibatch_hessian_vector_val(x, model, train_dataset, batch_size = 100, damping=0):
   num_iter = int(np.ceil(len(train_dataset.x) / batch_size))
   final_result = None
@@ -72,7 +72,7 @@ def minibatch_hessian_vector_val(x, model, train_dataset, batch_size = 100, damp
 
 # def get_vec_to_list_fn(self):
 #   params_val = self.sess.run(self.params)
-#   self.num_params = len(np.concatenate(params_val))        
+#   self.num_params = len(np.concatenate(params_val))
 #   print('Total number of parameters: %s' % self.num_params)
 #   def vec_to_list(v):
 #     return_list = []
@@ -94,7 +94,7 @@ def minibatch_hessian_vector_val(x, model, train_dataset, batch_size = 100, damp
 #     # x is current params
 #     v = self.vec_to_list(x)
 #     idx_to_remove = 5
-#     single_train_feed_dict = self.fill_feed_dict_with_one_ex(self.data_sets.train, idx_to_remove)      
+#     single_train_feed_dict = self.fill_feed_dict_with_one_ex(self.data_sets.train, idx_to_remove)
 #     train_grad_loss_val = self.sess.run(self.grad_total_loss_op, feed_dict=single_train_feed_dict)
 #     predicted_loss_diff = np.dot(np.concatenate(v), np.concatenate(train_grad_loss_val)) / self.num_train_examples
 #     if verbose:
@@ -106,12 +106,12 @@ def minibatch_hessian_vector_val(x, model, train_dataset, batch_size = 100, damp
 
 # Gradients is a list of size P (for P paramaters in the model)
 # Needs train_data to get loss to compute Hessian of model's loss w.r.t parameters
-# Uses Conjugate Gradient approximation of HVP, see section 3 subsection Conjugate Gradient 
+# Uses Conjugate Gradient approximation of HVP, see section 3 subsection Conjugate Gradient
 # to see what they are trying to do here
 # minibatch_hessian_vector_val(x, model, train_dataset, batch_size = 100, damping=0)
 def get_inverse_hvp_cg(model, train_data, gradients, verbose=True):
   params_val = model.new_params()
-  num_params = len(np.concatenate(params_val))        
+  num_params = len(np.concatenate(params_val))
   print('Total number of parameters: %s' % num_params)
   def vec_to_list(v):
     return_list = []
@@ -143,18 +143,49 @@ def get_inverse_hvp_cg(model, train_data, gradients, verbose=True):
       fhess_p=get_fmin_hvp,
       # callback=cg_callback,
       avextol=1e-8,
-      maxiter=100) 
+      maxiter=100)
   return vec_to_list(fmin_results)
 
-def get_hvp(model, 
+def get_hvp(model,
             test_data, train_data,
-            test_description, force_refresh=True):
+            test_description,
+            test_idx = None,
+			force_refresh=True,
+            target_labels = None):
   # returns a list of gradients of size P (to represent P parameters in the model)
-  test_grad_loss_no_reg_val = get_test_grad_loss_no_reg_val(model, test_data)
+  # target_labels is the target label that we want to flip to. The loss function we want to minimze (and get the gradient for):
+  # loss_{target_label} - \sum_{i != target} loss_{label_i}
+
+  if target_labels != None and len(test_idx) != 1:
+      raise Exception("Can only do label targetting for one test point at a time")
+
+  if test_idx == None:
+      interesting_test_data = test_data
+  else:
+      interesting_test_data = DataSet(test_data.x[test_idx, :], test_data.labels[test_idx])
+  test_grad_loss_no_reg_val = get_test_grad_loss_no_reg_val(model, interesting_test_data)
+  # test_grad_loss_no_reg_val = get_test_grad_loss_no_reg_val(model, test_data)
   logger.debug('Norm of test gradient: %s' % np.linalg.norm(np.concatenate(test_grad_loss_no_reg_val)))
 
-  # The approximation of the product (Hession matrix & gradients of test loss) is 
-  # by the Conjugate Gradiant approximation and the result is stored so that 
+  # If a target label is given we do as below. Otherwise we justr try to maximize the loss of the true label
+  if target_labels != None:
+    # initialize with loss of target label
+    interesting_test_data = DataSet(test_data.x[test_idx, :], np.asarray(target_labels))
+    test_grad_loss_no_reg_val = np.asarray(get_test_grad_loss_no_reg_val(model, interesting_test_data))
+#     # Subtract loss of all other labels
+#     for label in range(model.num_classes):
+# 		if label == test_data.labels[test_idx]:
+# 			interesting_test_data = DataSet(test_data.x[test_idx, :], np.asarray([label]))
+# 			test_grad_loss_no_reg_val-= np.asarray(get_test_grad_loss_no_reg_val(model, interesting_test_data))
+
+# 		elif label != target_labels[0]:
+# 			interesting_test_data = DataSet(test_data.x[test_idx, :], np.asarray([label]))
+# 			test_grad_loss_no_reg_val-= .5 * np.asarray(get_test_grad_loss_no_reg_val(model, interesting_test_data))
+
+
+
+  # The approximation of the product (Hession matrix & gradients of test loss) is
+  # by the Conjugate Gradiant approximation and the result is stored so that
   # no future computation will be needed
   start_time = time.time()
   approximation_filename = os.path.join(model.train_dir, '%s-test-%s.npz' % (model.model_name, test_description))
@@ -170,23 +201,33 @@ def get_hvp(model,
   return inverse_hvp
 
 
-def get_influence_on_test_loss(model, 
-                               test_data, train_idx, train_data, 
-                               test_description,
+def get_influence_on_test_loss(model,
+                               test_data, train_idx, train_data,
+                               test_description, test_idx = None,
                                force_refresh=True):
   # If train_idx is None then use X and Y (phantom points)
   # Need to make sure test_data stays consistent between models
   # because mini-batching permutes dataset order
-
-  inverse_hvp = get_hvp(model, test_data, train_data, test_description, force_refresh)
+  start_time = time.time()
+  approx_filename = os.path.join(model.train_dir, '%s-test-%s.npz' % (model.model_name, test_description))
+  if os.path.exists(approx_filename) and force_refresh == False:
+      inverse_hvp = list(np.load(approx_filename)['inverse_hvp'])
+      print('Loaded inverse HVP from %s' % approx_filename)
+  else:
+      raise Exception("Need to have hvp calculated before, trying to avoid to calculate it here")
+      inverse_hvp = get_inverse_hvp_cg(model, train_data, test_grad_loss_no_reg_val)
+      np.savez(approx_filename, inverse_hvp=inverse_hvp)
+      print('Saved inverse HVP to %s' % approx_filename)
+  duration = time.time() - start_time
+  print('Inverse HVP took %s sec' % duration)
 
   start_time = time.time()
   num_to_remove = len(train_idx)
   predicted_loss_diffs = np.zeros([num_to_remove])
-  for counter, idx_to_remove in enumerate(train_idx):            
+  for counter, idx_to_remove in enumerate(train_idx):
     train_grad_loss_val = model.grad_total_loss(train_data.x[idx_to_remove, :].reshape(1, -1),
                                                 train_data.labels[idx_to_remove].reshape(-1))
-    predicted_loss_diffs[counter] = np.dot(np.concatenate(inverse_hvp), 
+    predicted_loss_diffs[counter] = np.dot(np.concatenate(inverse_hvp),
                                            np.concatenate(train_grad_loss_val)) / len(train_data.x)
   duration = time.time() - start_time
   print('Multiplying by %s train examples took %s sec' % (num_to_remove, duration))
@@ -194,33 +235,36 @@ def get_influence_on_test_loss(model,
   return predicted_loss_diffs
 
 
-def get_grad_of_influence_wrt_input(model, 
-                                    test_data, train_idx, train_data, 
+def get_grad_of_influence_wrt_input(model,
+                                    test_idx, test_data, train_idx, train_data,
                                     test_description,
                                     force_refresh=True):
   """
   If the loss goes up when you remove a point, then it was a helpful point.
   So positive influence = helpful.
-  If we move in the direction of the gradient, we make the influence even more positive, 
+  If we move in the direction of the gradient, we make the influence even more positive,
   so even more helpful.
   Thus if we want to make the test point more wrong, we have to move in the opposite direction.
   """
 
   # Calculate v_placeholder (gradient of loss at test point)
-  test_grad_loss_no_reg_val = get_test_grad_loss_no_reg_val(model, test_data)
 
-  print('Norm of test gradient: %s' % np.linalg.norm(np.concatenate(test_grad_loss_no_reg_val)))
-  
+  # interesting_test_data = DataSet(test_data.x[test_idx, :], test_data.labels[test_idx])
+  # test_grad_loss_no_reg_val = get_test_grad_loss_no_reg_val(model, interesting_test_data)
+
+  # print('Norm of test gradient: %s' % np.linalg.norm(np.concatenate(test_grad_loss_no_reg_val)))
+
   start_time = time.time()
 
   approx_filename = os.path.join(model.train_dir, '%s-test-%s.npz' % (model.model_name, test_description))
   if os.path.exists(approx_filename) and force_refresh == False:
       inverse_hvp = list(np.load(approx_filename)['inverse_hvp'])
       print('Loaded inverse HVP from %s' % approx_filename)
-  else:            
+  else:
+      raise Exception("Need to have hvp calculated before, trying to avoid to calculate it here")
       inverse_hvp = get_inverse_hvp_cg(model, train_data, test_grad_loss_no_reg_val)
       np.savez(approx_filename, inverse_hvp=inverse_hvp)
-      print('Saved inverse HVP to %s' % approx_filename)            
+      print('Saved inverse HVP to %s' % approx_filename)
   duration = time.time() - start_time
   print('Inverse HVP took %s sec' % duration)
 
@@ -228,8 +272,8 @@ def get_grad_of_influence_wrt_input(model,
   print("Entering the for loop")
   for counter, idx_to_remove in enumerate(train_idx):
       # Take the derivative of the influence w.r.t input
-      logger.info("Looping over training points. Counter: {}, idx_to_remove: {}".format(counter, idx_to_remove))
-      current_grad_influence_wrt_input_val = model.grad_influence_wrt_input(inverse_hvp, 
+      # logger.info("Looping over training points. Counter: {}, idx_to_remove: {}".format(counter, idx_to_remove))
+      current_grad_influence_wrt_input_val = model.grad_influence_wrt_input(inverse_hvp,
                                                       train_data.x[idx_to_remove, :].reshape(1, -1),
                                                       train_data.labels[idx_to_remove].reshape(-1))
       if grad_influence_wrt_input_val is None:
@@ -258,3 +302,4 @@ def get_project_fn(X_orig, box_radius_in_pixels=0.5):
       return np.clip(X, lower_bound, upper_bound)
 
   return project_fn
+    

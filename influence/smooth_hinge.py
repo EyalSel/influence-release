@@ -90,7 +90,7 @@ class SmoothHinge(GenericNeuralNet):
 
         self.set_params_op = self.set_params()
 
-        assert self.num_classes == 2
+        # assert self.num_classes == 2
 
     def get_all_params(self):
         all_params = []
@@ -99,7 +99,7 @@ class SmoothHinge(GenericNeuralNet):
             for var_name in ['weights']:
                 temp_tensor = tf.get_default_graph().get_tensor_by_name("%s/%s:0" % (layer, var_name))            
                 all_params.append(temp_tensor)      
-        return all_params        
+        return all_params
         
 
     def placeholder_inputs(self):
@@ -123,7 +123,7 @@ class SmoothHinge(GenericNeuralNet):
             if self.use_bias: 
                 weights = variable_with_weight_decay(
                     'weights', 
-                    [self.input_dim + 1],
+                    [self.num_classes*(self.input_dim + 1)],
                     stddev=5.0 / math.sqrt(float(self.input_dim)),
                     wd=self.weight_decay)            
                 # biases = variable(
@@ -136,15 +136,17 @@ class SmoothHinge(GenericNeuralNet):
                     tf.reshape(weights, [-1, 1]))# + biases
             
             else: 
+                print("num classes", self.num_classes)
+                print("input dim", self.input_dim)
                 weights = variable_with_weight_decay(
                     'weights', 
-                    [self.input_dim],
+                    [self.num_classes*self.input_dim],
                     stddev=5.0 / math.sqrt(float(self.input_dim)),
                     wd=self.weight_decay)            
 
                 logits = tf.matmul(
                     input,
-                    tf.reshape(weights, [-1, 1]))
+                    tf.reshape(weights, [-1, self.num_classes]))
 
 
         self.weights = weights
@@ -283,12 +285,12 @@ class SmoothHinge(GenericNeuralNet):
         if self.use_bias:
             self.W_placeholder = tf.placeholder(
                 tf.float32,
-                shape=[self.input_dim + 1],
+                shape=[self.num_classes*(self.input_dim + 1)],
                 name='W_placeholder')
         else:
             self.W_placeholder = tf.placeholder(
                 tf.float32,
-                shape=[self.input_dim],
+                shape=[self.num_classes*self.input_dim],
                 name='W_placeholder')
         set_weights = tf.assign(self.weights, self.W_placeholder, validate_shape=True)
         return [set_weights]

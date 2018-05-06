@@ -178,17 +178,18 @@ class BinaryInceptionModel(GenericNeuralNet):
         with tf.variable_scope('softmax_linear'):
             weights = variable_with_weight_decay(
                 'weights', 
-                [self.num_features],
+                [self.num_features * self.num_classes],
                 stddev=1.0 / math.sqrt(float(self.num_features)),
                 wd=self.weight_decay)            
             
-            logits = tf.matmul(self.inception_features, tf.reshape(weights, [-1, 1])) 
-            zeros = tf.zeros_like(logits)
-            logits_with_zeros = tf.concat([zeros, logits], 1)
+            logits = tf.matmul(self.inception_features, tf.reshape(weights, [-1, self.num_classes]))
+            # zeros = tf.reshape(tf.zeros_like(logits)[,0], [-1, 1])
+            # logits_with_zeros = tf.concat([zeros, logits], 1)
 
         self.weights = weights
-
-        return logits_with_zeros
+	
+        # return logits_with_zeros
+        return logits
 
 
     def predictions(self, logits):
@@ -200,7 +201,7 @@ class BinaryInceptionModel(GenericNeuralNet):
         # See if we can automatically infer weight shape
         self.W_placeholder = tf.placeholder(
             tf.float32,
-            shape=[self.num_features],
+            shape=[self.num_features * self.num_classes],
             name='W_placeholder')
         set_weights = tf.assign(self.weights, self.W_placeholder, validate_shape=True)    
         return [set_weights]
@@ -315,5 +316,51 @@ class BinaryInceptionModel(GenericNeuralNet):
     def generate_inception_features(self, train_dataset, batch_size):
         feed_dict = self.fill_feed_dict_with_batch(train_dataset, batch_size)
         return self.sess.run(self.inception_features, feed_dict=feed_dict)
+	
+	def hessian_vector_product(self, train_x, train_labels, v):
+            input_feed_dict = {
+                        self.input_placeholder: train_x,
+                        self.labels_placeholder: train_labels,
+                        # self.v_placeholder: v
+                        K.learning_phase(): 0
+                }
+            self.update_feed_dict_with_v_placeholder(input_feed_dict, v)
+            return self.sess.run(self.hvp_op, feed_dict=input_feed_dict)
+
+    def grad_influence_wrt_input(self, inverse_hvp, xTr, yTr):
+            # inverse_hvp is the product of:
+            #   1. The inverse Hessian of the total training loss with respect to the parameters (P x P)
+            #   2. The gradient of the test loss with respect to the parameters (P x 1)
+            #   This is estimated directly using Conjugate gradient, which uses another approximation for the product of the Hessian and a vector v.
+            # xTr and yTr are the training points for which we get the perturbation influence.
+            # We do this by:
+            # 1. computing the product of inverse_hvp (P x 1) with the gradient of the loss of (xTr, yTr) w.r.t the parameters (P x 1)
+            # 2. Taking the gradient of the product w.r.t. xTr
+            input_feed_dict = {
+                    self.input_placeholder: xTr,
+                    self.labels_placeholder: yTr,
+                    K.learning_phase(): 0
+            }
+            # logger.info("calculating grad_influence_wrt_input")
+            self.update_feed_dict_with_v_placeholder(input_feed_dict, inverse_hvp)
+            return self.sess.run(self.grad_influence_wrt_input_op, feed_dict=input_feed_dict)[0][0,:]
+
+    def grad_loss_no_reg(self, x, y):
+            test_feed_dict = {
+                    self.input_placeholder: x.reshape(len(x), -1),
+                    self.labels_placeholder: y.reshape(-1),
+                    K.learning_phase(): 0
+            }
+            # learning_phase = tf.constant(False)
+            return self.sess.run(self.grad_loss_no_reg_op, feed_dict = test_feed_dict)
+
+    def grad_total_loss(self, x, y):
+            train_feed_dict = {
+                    self.input_placeholder: x.reshape(1, -1),
+                    self.labels_placeholder: y.reshape(-1),
+					K.learning_phase(): 0
+            }
+            return self.sess.run(self.grad_total_loss_op, feed_dict = train_feed_dict)
+
 
     

@@ -36,7 +36,7 @@ class LogisticRegressionWithLBFGS(GenericNeuralNet):
         self.set_params_op = self.set_params()
         # self.hessians_op = hessians(self.total_loss, self.params)        
         
-        # Multinomial has weird behavior when it's binary
+        # Multinomial has weird behavior when it's binar
         C = 1.0 / (self.num_train_examples * self.weight_decay)        
         self.sklearn_model = linear_model.LogisticRegression(
             C=C,
@@ -156,7 +156,7 @@ class LogisticRegressionWithLBFGS(GenericNeuralNet):
     def train_with_SGD(self, **kwargs):
         super(LogisticRegressionWithLBFGS, self).train(**kwargs)
 
-
+     
     def train_with_LBFGS(self, feed_dict, save_checkpoints=True, verbose=True):
         # More sanity checks to see if predictions are the same?        
 
@@ -174,18 +174,23 @@ class LogisticRegressionWithLBFGS(GenericNeuralNet):
             model = self.sklearn_model_minus_one
         else:
             raise ValueError, "feed_dict has incorrect number of training examples"
-
-        # print(X_train)
+        # print(X_train.shape)
+        # print(Y_train.shape)
         # print(Y_train)
         model.fit(X_train, Y_train)
         # sklearn returns coefficients in shape num_classes x num_features
         # whereas our weights are defined as num_features x num_classes
         # so we have to tranpose them first.
+		# Getting the parameter from the sklearn model. 
+		# This will be D x 1 if there are two classes because that's how sklearn works.
+		# Otherwise this will be D x C
         W = np.reshape(model.coef_.T, -1)
         # b = model.intercept_
 
         params_feed_dict = {}
         params_feed_dict[self.W_placeholder] = W
+		
+		
         # params_feed_dict[self.b_placeholder] = b
         self.sess.run(self.set_params_op, feed_dict=params_feed_dict)
         if save_checkpoints: self.saver.save(self.sess, self.checkpoint_file, global_step=0)
@@ -194,8 +199,11 @@ class LogisticRegressionWithLBFGS(GenericNeuralNet):
             print('LBFGS training took %s iter.' % model.n_iter_)
             print('After training with LBFGS: ')
             self.print_model_eval()
-
-
-
-
-
+    
+    def retrain_and_get_weights(self, train_x, train_labels):
+        input_feed_dict = {
+            self.input_placeholder: train_x,
+            self.labels_placeholder: train_labels
+        }
+        self.train_with_LBFGS(feed_dict=input_feed_dict)
+        return self.sess.run(self.weights)

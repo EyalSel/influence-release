@@ -14,7 +14,14 @@ import tensorflow as tf
 
 from tensorflow.contrib.learn.python.learn.datasets import base
 
-from influence.Progress import *
+# from influence.Progress import *
+
+import logging
+FORMAT = "[%(filename)s:%(lineno)s - %(funcName)20s() ] %(message)s"
+logger = logging.getLogger()
+logging.basicConfig(format=FORMAT)
+logger.setLevel(logging.INFO)
+logging.debug("test")
 
 
 def get_projection_to_box_around_orig_point(X_orig, box_radius_in_pixels=0.5):
@@ -144,7 +151,8 @@ def iterative_attack(top_model, full_model, top_graph, full_graph, project_fn, t
                 test_indices, 
                 force_refresh=False,
                 test_description=test_description,
-                loss_type=loss_type)    
+                loss_type=loss_type)
+            
             poisoned_X_train_subset = poison_with_influence_proj_gradient_step(
                 full_model, 
                 eff_indices_to_poison,
