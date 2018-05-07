@@ -1,0 +1,19 @@
+# Remember to copy-paste this to the terminal and not run it as a script, because source activate doesn't work within the script
+
+cd
+$Jeff_1_IP = 54.175.197.136
+conda create -n influence_env python=2.7 -y
+source activate influence_env
+pip install tensorflow==1.1.0
+pip install keras==2.0.4
+pip install spacy==1.8.2
+pip install h5py==2.7.0
+pip install jupyterlab
+pip install matplotlib seaborn numpy scipy scikit-learn pandas
+git clone https://EyalSel@github.com/EyalSel/influence-release
+mkdir influence-release/data
+wget 'https://worksheets.codalab.org/rest/bundles/0x550cd344825049bdbb865b887381823c/contents/blob/' -O dogfish.tar.gz
+tar xzf dogfish.tar.gz -C /home/ubuntu/influence-release/data
+# To get 5 classes
+scp -i Eyal.pem.txt -r ubuntu@$Jeff_1_IP:5classes .
+
