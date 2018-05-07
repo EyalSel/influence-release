@@ -148,6 +148,8 @@ def InceptionV3(include_top=True,
         raise ValueError('If using `weights` as imagenet with `include_top`'
                          ' as true, `classes` should be 1000')
 
+    K.set_learning_phase(0)
+    
     # Determine proper input shape
     input_shape = _obtain_input_shape(
         input_shape,

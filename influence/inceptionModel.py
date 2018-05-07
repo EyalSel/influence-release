@@ -71,8 +71,10 @@ class BinaryInceptionModel(GenericNeuralNet):
             solver='lbfgs',
             # multi_class='multinomial',
             warm_start=True,
-            max_iter=1000)        
-
+            max_iter=1000)  
+		
+        self.Lp_op, self.Lp_gradient_op = self.get_Lp_and_gradiant_Lp_op()
+		
 
     def get_all_params(self):
         all_params = []
@@ -100,7 +102,7 @@ class BinaryInceptionModel(GenericNeuralNet):
         feed_dict = {
             self.input_placeholder: data_set.x,
             self.labels_placeholder: data_set.labels,
-            K.learning_phase(): 0
+            # K.learning_phase(): 0
         }
         return feed_dict
 
@@ -112,7 +114,7 @@ class BinaryInceptionModel(GenericNeuralNet):
         feed_dict = {
             self.input_placeholder: data_set.x[idx, :],
             self.labels_placeholder: data_set.labels[idx],
-            K.learning_phase(): 0
+            # K.learning_phase(): 0
         }
         return feed_dict
 
@@ -127,7 +129,7 @@ class BinaryInceptionModel(GenericNeuralNet):
         feed_dict = {
             self.input_placeholder: input_feed,
             self.labels_placeholder: labels_feed,            
-            K.learning_phase(): 0
+            # K.learning_phase(): 0
         }
         return feed_dict
 
@@ -138,7 +140,7 @@ class BinaryInceptionModel(GenericNeuralNet):
         feed_dict = {
             self.input_placeholder: input_feed,
             self.labels_placeholder: labels_feed,
-            K.learning_phase(): 0            
+            # K.learning_phase(): 0            
         }
         return feed_dict
 
@@ -149,7 +151,7 @@ class BinaryInceptionModel(GenericNeuralNet):
         feed_dict = {
             self.input_placeholder: input_feed,
             self.labels_placeholder: labels_feed,
-            K.learning_phase(): 0            
+            # K.learning_phase(): 0            
         }
         return feed_dict
 
@@ -178,20 +180,50 @@ class BinaryInceptionModel(GenericNeuralNet):
         with tf.variable_scope('softmax_linear'):
             weights = variable_with_weight_decay(
                 'weights', 
-                [self.num_features * self.num_classes],
+                [self.num_features], # * self.num_classes],
                 stddev=1.0 / math.sqrt(float(self.num_features)),
                 wd=self.weight_decay)            
             
-            logits = tf.matmul(self.inception_features, tf.reshape(weights, [-1, self.num_classes]))
-            # zeros = tf.reshape(tf.zeros_like(logits)[,0], [-1, 1])
-            # logits_with_zeros = tf.concat([zeros, logits], 1)
+            logits = tf.matmul(self.inception_features, tf.reshape(weights, [-1, 1]))#self.num_classes]))
+            zeros = tf.reshape(tf.zeros_like(logits)[:,0], [-1, 1])
+            logits_with_zeros = tf.concat([zeros, logits], 1)
+            print("logits_with_zeros", logits_with_zeros)
 
         self.weights = weights
 	
-        # return logits_with_zeros
+        return logits_with_zeros
         return logits
+	
+    def get_Lp_and_gradiant_Lp_op(self):
+        # Get slice [0] for x_poison features, get slice [1] for t_target features
+        #x_posion_features = self.inception_features[0]
+        #t_target_features = self.inception_features[1]
+        print("inception_features: ", self.inception_features)
+        x_poison_features = tf.gather(self.inception_features, [0])
+        t_target_features = tf.gather(self.inception_features, [1])
+        print("x_poison_features: ", x_poison_features)
+        print("t_target_features: ", t_target_features)
+        # Get L2 distance between them -> Now we have final tensor
+        Lp = tf.square(tf.norm(x_poison_features - t_target_features))
+        print("Lp: ", Lp)
+        # Get gradient of final loss tensor with respect to input tensor and get slice [0] of gradients (just of x poison)
+        Lp_gradient = tf.gradients([Lp], [self.input_placeholder])[0][0]
+        print("LP_gradient", Lp_gradient)
+        return Lp, Lp_gradient
+    
+    def get_gradiant_Lp(self, xTr, xTst):
+        # create value of placeholder for inception model features
+        placeholder_value = np.vstack([xTr, xTst])
+        # feed into session with feed_dict of the placeholder value into placeholder, and return result
+        # print (self.Lp_gradient_op, self.input_placeholder, placeholder_value)
+        return self.sess.run(self.Lp_gradient_op, feed_dict = {self.input_placeholder:placeholder_value})
+                                                               #K.learning_phase(): 0})
 
-
+    def get_Lp(self, xTr, xTst):
+        placeholder_value = np.vstack([xTr, xTst])
+        return self.sess.run(self.Lp_op, feed_dict = {self.input_placeholder:placeholder_value})
+                                                               #K.learning_phase(): 0})
+        
     def predictions(self, logits):
         preds = tf.nn.softmax(logits, name='preds')
         return preds
@@ -201,7 +233,7 @@ class BinaryInceptionModel(GenericNeuralNet):
         # See if we can automatically infer weight shape
         self.W_placeholder = tf.placeholder(
             tf.float32,
-            shape=[self.num_features * self.num_classes],
+            shape=[self.num_features ], #* self.num_classes],
             name='W_placeholder')
         set_weights = tf.assign(self.weights, self.W_placeholder, validate_shape=True)    
         return [set_weights]
@@ -213,7 +245,14 @@ class BinaryInceptionModel(GenericNeuralNet):
             save_checkpoints=False, 
             verbose=False)
 
-
+    def retrain_and_get_weights(self, train_x, train_labels):
+		input_feed_dict = {
+			self.input_placeholder: train_x,
+			self.labels_placeholder: train_labels
+		}
+		self.train_with_LBFGS(feed_dict=input_feed_dict)
+		return self.sess.run(self.weights)
+        
     def train(self, num_steps=None, 
               iter_to_switch_to_batch=None, 
               iter_to_switch_to_sgd=None,
@@ -238,7 +277,7 @@ class BinaryInceptionModel(GenericNeuralNet):
         ret = np.zeros([num_examples, self.num_features])
 
         batch_feed_dict = {}
-        batch_feed_dict[K.learning_phase()] = 0
+        # batch_feed_dict[K.learning_phase()] = 0
 
         for i in xrange(num_iter):
             start = i * batch_size
@@ -272,7 +311,7 @@ class BinaryInceptionModel(GenericNeuralNet):
             logger.debug('Using model minus one')
             model = self.sklearn_model_minus_one
         else:
-            raise ValueError, "feed_dict has incorrect number of training examples"
+            raise ValueError, "feed_dict has incorrect number ({}) of training examples".format()
 
         model.fit(X_train, Y_train)
         # sklearn returns coefficients in shape num_classes x num_features
@@ -313,7 +352,7 @@ class BinaryInceptionModel(GenericNeuralNet):
 
         # Maybe update Hessian every time main train routine is called?
 
-    def generate_inception_features(self, train_dataset, batch_size):
+    def generate_inception_features(self, train_dataset, batch_size=100):
         feed_dict = self.fill_feed_dict_with_batch(train_dataset, batch_size)
         return self.sess.run(self.inception_features, feed_dict=feed_dict)
 	
@@ -322,7 +361,7 @@ class BinaryInceptionModel(GenericNeuralNet):
                         self.input_placeholder: train_x,
                         self.labels_placeholder: train_labels,
                         # self.v_placeholder: v
-                        K.learning_phase(): 0
+                        # K.learning_phase(): 0
                 }
             self.update_feed_dict_with_v_placeholder(input_feed_dict, v)
             return self.sess.run(self.hvp_op, feed_dict=input_feed_dict)
@@ -339,7 +378,7 @@ class BinaryInceptionModel(GenericNeuralNet):
             input_feed_dict = {
                     self.input_placeholder: xTr,
                     self.labels_placeholder: yTr,
-                    K.learning_phase(): 0
+                    # K.learning_phase(): 0
             }
             # logger.info("calculating grad_influence_wrt_input")
             self.update_feed_dict_with_v_placeholder(input_feed_dict, inverse_hvp)
@@ -349,7 +388,7 @@ class BinaryInceptionModel(GenericNeuralNet):
             test_feed_dict = {
                     self.input_placeholder: x.reshape(len(x), -1),
                     self.labels_placeholder: y.reshape(-1),
-                    K.learning_phase(): 0
+                    # K.learning_phase(): 0
             }
             # learning_phase = tf.constant(False)
             return self.sess.run(self.grad_loss_no_reg_op, feed_dict = test_feed_dict)
@@ -358,7 +397,7 @@ class BinaryInceptionModel(GenericNeuralNet):
             train_feed_dict = {
                     self.input_placeholder: x.reshape(1, -1),
                     self.labels_placeholder: y.reshape(-1),
-					K.learning_phase(): 0
+					# K.learning_phase(): 0
             }
             return self.sess.run(self.grad_total_loss_op, feed_dict = train_feed_dict)
 
