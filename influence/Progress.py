@@ -305,8 +305,8 @@ def get_project_fn(X_orig, box_radius_in_pixels=0.5):
 
 
 def baseline_iterative_attack(
-     top_model, full_model, top_graph, full_graph, project_fn, test_indices, test_description, 
-     train_dataset, test_dataset, dataset_name,
+     top_model, full_model, top_graph, full_graph, test_indices, test_description, 
+     train_dataset, test_dataset, dataset_xwname,
      indices_to_poison=None,
      num_iter=10,
      step_size=1,

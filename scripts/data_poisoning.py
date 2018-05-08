@@ -248,17 +248,16 @@ def data_poisoning(data_selected,
 		attack_fn = iterative_attack
 	else:
 		beta = 2048.**2/(img_side*img_side*num_channels)**2*.25
-		attack_fn = baseline_iterative_attack
+		attack_fn = baseline_iterative_attack # Taken from Progress.py
 
-	poisoned_image = attack_fn(top_model, full_model, top_graph, full_graph, project_fn, 
+	poisoned_images = attack_fn(top_model, full_model, top_graph, full_graph, 
 							  target_test_idx, 
 							  test_description, 
 							  data_sets.train, data_sets.test, dataset_name,
 							  indices_to_poison=index_to_poison,
-							  num_iter=200,
+							  num_iter=100 if use_IF else 1000,
 							  step_size=step_size,
 							  save_iter=100,
-							  early_stop=0.5,
 							  beta = beta,
 							  target_labels = target_labels)
-	return poisoned_image
+	return index_to_poison, poisoned_images

@@ -288,12 +288,12 @@ class BinaryInceptionModel(GenericNeuralNet):
             verbose=False)
 
     def retrain_and_get_weights(self, train_x, train_labels):
-		input_feed_dict = {
-			self.input_placeholder: train_x,
-			self.labels_placeholder: train_labels
-		}
-		self.train_with_LBFGS(feed_dict=input_feed_dict)
-		return self.sess.run(self.weights)
+        input_feed_dict = {
+            self.input_placeholder: train_x,
+            self.labels_placeholder: train_labels
+        }
+        self.train_with_LBFGS(feed_dict=input_feed_dict)
+        return self.sess.run(self.weights)
         
     def train(self, num_steps=None, 
               iter_to_switch_to_batch=None, 
