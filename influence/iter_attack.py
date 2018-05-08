@@ -59,16 +59,8 @@ def poison_with_influence_proj_gradient_step(indices_to_poison, grad_influence_w
 	that has been modified by a single gradient step.
 	"""
 
-	poisoned_X_train_subset = project_fn(
-		train_dataset.x[indices_to_poison, :] - step_size * np.sign(grad_influence_wrt_input_val_subset) * 2.0 / 255.0)
+	poisoned_X_train_subset = train_dataset.x[indices_to_poison, :] - step_size * np.sign(grad_influence_wrt_input_val_subset) * 2.0 / 255.0
 
-	logger.info('-- max: %s, mean: %s, min: %s' % (
-		np.max(grad_influence_wrt_input_val_subset),
-		np.mean(grad_influence_wrt_input_val_subset),
-		np.min(grad_influence_wrt_input_val_subset)))
-	print(grad_influence_wrt_input_val_subset.shape)
-	print(np.sign(grad_influence_wrt_input_val_subset).shape)
-	print("boom: ", poisoned_X_train_subset.shape)
 	return poisoned_X_train_subset
 
 def generate_inception_features(model, poisoned_X_train_subset, labels_subset, batch_size=None):
@@ -164,8 +156,9 @@ def iterative_attack(
 			'output/%s-test-%s.npz' % (full_model_name, test_description))
 
 		# Use full model to get gradient wrt pixels
+		poisoned_X = np.zeros_like(train_dataset.x[indices_to_poison, :])
 		with full_graph.as_default():
-			for train_idx in indices_to_poison:
+			for counter, train_idx in enumerate(indices_to_poison):
 				# Calculate the pertubation
 				grad_influence_wrt_input_val_subset = get_grad_of_influence_wrt_input(full_model, 
 														test_indices, 
@@ -185,19 +178,17 @@ def iterative_attack(
 					[train_idx],
 					grad_influence_wrt_input_val_subset,
 					step_size,
-					project_fn, 
+					None, 
 					train_dataset)
 				
-				print("train_idx: ", train_idx)
-				print(poisoned_X_train_subset.shape)
-				print(train_dataset.x[[train_idx], :].shape)
+				poisoned_X[counter, :] = poisoned_X_train_subset
+			poisoned_X = project_fn(poisoned_X)
 
-				# Update raw-image training dataset with poison
-				train_dataset.x[[train_idx], :] = poisoned_X_train_subset
+			# Update raw-image training dataset with poison
+			train_dataset.x[indices_to_poison, :] = poisoned_X
 
-				with full_graph.as_default():
-					# We update the cached inception features for the raw-image input with the poisoned version
-					inception_X_train.x[train_idx, :] = generate_inception_features(full_model, poisoned_X_train_subset, labels_subset)
+			# We update the cached inception features for the raw-image input with the poisoned version
+			inception_X_train.x[indices_to_poison, :] = generate_inception_features(full_model, train_dataset.x[indices_to_poison, :], labels_subset)
 
 
 		with top_graph.as_default():
