@@ -156,8 +156,8 @@ def get_hvp(model,
   # target_labels is the target label that we want to flip to. The loss function we want to minimze (and get the gradient for):
   # loss_{target_label} - \sum_{i != target} loss_{label_i}
 
-  if target_labels != None and len(test_idx) != 1:
-      raise Exception("Can only do label targetting for one test point at a time")
+  #if target_labels != None and len(test_idx) != 1:
+  #    raise Exception("Can only do label targetting for one test point at a time")
 
   if test_idx == None:
       interesting_test_data = test_data
@@ -302,4 +302,36 @@ def get_project_fn(X_orig, box_radius_in_pixels=0.5):
       return np.clip(X, lower_bound, upper_bound)
 
   return project_fn
+
+
+def baseline_iterative_attack(
+     top_model, full_model, top_graph, full_graph, project_fn, test_indices, test_description, 
+     train_dataset, test_dataset, dataset_name,
+     indices_to_poison=None,
+     num_iter=10,
+     step_size=1,
+     save_iter=1,
+     early_stop=None,
+     beta = None,
+	 target_labels = None):
+	
+    assert beta is not None
+    result = np.zeros_like(train_dataset.x[indices_to_poison])
+		
+    for counter, train_idx in enumerate(indices_to_poison):
+        b = train_dataset.x[train_idx]
+        t = test_dataset.x[test_indices]
+        x = np.copy(b)
+
+        for j in range(num_iter):
+            if j%100==0:
+                print(j, full_model.get_Lp(x, t))
+            gradients_Lp = full_model.get_gradiant_Lp(x, t)
+
+            x_hat = x - step_size * gradients_Lp
+            x_next = (x_hat + step_size * beta * b) / (1 + beta * step_size)
+            x = x_next
+        result[counter, :] = x
+
+    return result 
     

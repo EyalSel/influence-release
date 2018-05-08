@@ -27,10 +27,10 @@ def fill(X, Y, idx, label, img_path, img_side):
 	 
 def extract_and_rename_animals():
 	class_maps = [
-		# ('dog', 'n02084071'),
+		('dog', 'n02084071'),
 		# ('cat', 'n02121808'),
 		# ('bird', 'n01503061'),
-		# ('fish', 'n02512053'),
+		('fish', 'n02512053'),
 		# ('horse', 'n02374451'),
 		# ('monkey', 'n02484322'),
 		# ('zebra', 'n02391049'),

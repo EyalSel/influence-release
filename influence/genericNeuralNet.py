@@ -37,9 +37,6 @@ logging.basicConfig(format=FORMAT)
 logger.setLevel(logging.INFO)
 logging.debug("test")
 
-# from keras import backend as K
-
-# K.set_learning_phase(1) #set learning phase
 
 def variable(name, shape, initializer):
 	dtype = tf.float32
@@ -277,7 +274,6 @@ class GenericNeuralNet(object):
 			}
 			return feed_dict
 
-
 	def minibatch_mean_eval(self, ops, data_set):
 
 			num_examples = data_set.num_examples
@@ -285,24 +281,25 @@ class GenericNeuralNet(object):
 			num_iter = int(num_examples / self.batch_size)
 
 			self.reset_datasets()
-
+            
 			ret = []
 			for i in xrange(num_iter):
 					feed_dict = self.fill_feed_dict_with_batch(data_set)
+					if 0 in feed_dict.keys(): feed_dict.pop(0)
 					ret_temp = self.sess.run(ops, feed_dict=feed_dict)
 
 					if len(ret)==0:
-							for b in ret_temp:
-									if isinstance(b, list):
-											ret.append([c / float(num_iter) for c in b])
-									else:
-											ret.append([b / float(num_iter)])
+						for b in ret_temp:
+							if isinstance(b, list):
+								ret.append([c / float(num_iter) for c in b])
+							else:
+								ret.append([b / float(num_iter)])
 					else:
-							for counter, b in enumerate(ret_temp):
-									if isinstance(b, list):
-											ret[counter] = [a + (c / float(num_iter)) for (a, c) in zip(ret[counter], b)]
-									else:
-											ret[counter] += (b / float(num_iter))
+						for counter, b in enumerate(ret_temp):
+							if isinstance(b, list):
+								ret[counter] = [a + (c / float(num_iter)) for (a, c) in zip(ret[counter], b)]
+							else:
+								ret[counter] += (b / float(num_iter))
 
 			return ret
 

@@ -54,25 +54,44 @@ class BinaryInceptionModel(GenericNeuralNet):
         self.set_params_op = self.set_params()
 
         C = 1.0 / ((self.num_train_examples) * self.weight_decay)
-        self.sklearn_model = linear_model.LogisticRegression(
-            C=C,
-            tol=1e-8,
-            fit_intercept=False, 
-            solver='lbfgs',
-            # multi_class='multinomial',
-            warm_start=True,
-            max_iter=1000)
+        if self.num_classes == 2:
+            self.sklearn_model = linear_model.LogisticRegression(
+                C=C,
+                tol=1e-8,
+                fit_intercept=False, 
+                solver='lbfgs',
+                # multi_class='multinomial',
+                warm_start=True,
+                max_iter=1000)
 
-        C_minus_one = 1.0 / ((self.num_train_examples - 1) * self.weight_decay)
-        self.sklearn_model_minus_one = linear_model.LogisticRegression(
-            C=C_minus_one,
-            tol=1e-8,
-            fit_intercept=False, 
-            solver='lbfgs',
-            # multi_class='multinomial',
-            warm_start=True,
-            max_iter=1000)  
-		
+            C_minus_one = 1.0 / ((self.num_train_examples - 1) * self.weight_decay)
+            self.sklearn_model_minus_one = linear_model.LogisticRegression(
+                C=C_minus_one,
+                tol=1e-8,
+                fit_intercept=False, 
+                solver='lbfgs',
+                # multi_class='multinomial',
+                warm_start=True,
+                max_iter=1000)
+        else:
+            self.sklearn_model = linear_model.LogisticRegression(
+                C=C,
+                tol=1e-8,
+                fit_intercept=False, 
+                solver='lbfgs',
+                multi_class='multinomial',
+                warm_start=True,
+                max_iter=1000)
+
+            C_minus_one = 1.0 / ((self.num_train_examples - 1) * self.weight_decay)
+            self.sklearn_model_minus_one = linear_model.LogisticRegression(
+                C=C_minus_one,
+                tol=1e-8,
+                fit_intercept=False, 
+                solver='lbfgs',
+                multi_class='multinomial',
+                warm_start=True,
+                max_iter=1000)		
         self.Lp_op, self.Lp_gradient_op = self.get_Lp_and_gradiant_Lp_op()
 		
 
@@ -178,20 +197,32 @@ class BinaryInceptionModel(GenericNeuralNet):
 
 
         with tf.variable_scope('softmax_linear'):
-            weights = variable_with_weight_decay(
-                'weights', 
-                [self.num_features], # * self.num_classes],
-                stddev=1.0 / math.sqrt(float(self.num_features)),
-                wd=self.weight_decay)            
-            
-            logits = tf.matmul(self.inception_features, tf.reshape(weights, [-1, 1]))#self.num_classes]))
-            zeros = tf.reshape(tf.zeros_like(logits)[:,0], [-1, 1])
-            logits_with_zeros = tf.concat([zeros, logits], 1)
-            print("logits_with_zeros", logits_with_zeros)
+            # if binary, the proper dimension of Log Reg's weight param 
+            # should be input_dim * 1. 
+            # Thus to find the logits, we need to append a zero column
+            # to get the proper input of the softmax layer 
+            if self.num_classes == 2:
+                weights = variable_with_weight_decay(
+                    'weights', 
+                    [self.num_features], 
+                    stddev=1.0 / math.sqrt(float(self.num_features)),
+                    wd=self.weight_decay)            
+
+                logits = tf.matmul(self.inception_features, tf.reshape(weights, [-1, 1]))
+                zeros = tf.reshape(tf.zeros_like(logits)[:,0], [-1, 1])
+                logits = tf.concat([zeros, logits], 1)
+            # if multilabels, logits would be simply the product of 
+            # weight and latent features 
+            else:
+                weights = variable_with_weight_decay(
+                    'weights', 
+                    [self.num_features * self.num_classes],
+                    stddev=1.0 / math.sqrt(float(self.num_features)),
+                    wd=self.weight_decay)            
+
+                logits = tf.matmul(self.inception_features, tf.reshape(weights, [-1, self.num_classes]))
 
         self.weights = weights
-	
-        return logits_with_zeros
         return logits
 	
     def get_Lp_and_gradiant_Lp_op(self):
@@ -230,11 +261,20 @@ class BinaryInceptionModel(GenericNeuralNet):
 
 
     def set_params(self):
-        # See if we can automatically infer weight shape
-        self.W_placeholder = tf.placeholder(
-            tf.float32,
-            shape=[self.num_features ], #* self.num_classes],
-            name='W_placeholder')
+        # if binary, the proper dimension of Log Reg's weight param 
+        # should be input_dim * 1.
+        if self.num_classes == 2:
+            self.W_placeholder = tf.placeholder(
+                tf.float32,
+                shape=[self.num_features ],
+                name='W_placeholder')
+        # if multilabels, the proper dim of Log Reg's weight param
+        # should be input_dim * num_classes 
+        else:
+            self.W_placeholder = tf.placeholder(
+                tf.float32,
+                shape=[self.num_features * self.num_classes],
+                name='W_placeholder')
         set_weights = tf.assign(self.weights, self.W_placeholder, validate_shape=True)    
         return [set_weights]
 
