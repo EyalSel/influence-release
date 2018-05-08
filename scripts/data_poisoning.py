@@ -194,8 +194,6 @@ def data_poisoning(data_selected,
 
 	num_train = len(data_sets.train.labels)
 	num_test = len(data_sets.test.labels)
-	max_num_to_poison = 10
-
 
 	print('****** Attacking test_idx %s ******' % target_test_idx)
 	test_description = target_test_idx

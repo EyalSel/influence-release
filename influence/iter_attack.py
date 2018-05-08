@@ -210,19 +210,19 @@ def iterative_attack(
           logger.info('Test_idx: %s Test pred (top): %s'%(test_idx, pred))
 
 
-    # Trying to do early stopping
-    # As mentioned above, test_dataset.labels for indices_to_poison are the true labels when untargeted, and the target labels when targeted
-    # If untargeted, we check that the label with the highest score (from target_test_pred) is NOT the true label
-    # If targeted, we check that the label with the highest score (from target_test_pred) IS the target label
-    label_with_highest_score = np.argmax(target_test_pred, axis=1)
-    equal_array = np.equal(label_with_highest_score, test_dataset.labels[target_test_indices])
-    if target_labels == None: # Untargeted
-      done = not np.any(equal_array) # Done if none of the labels with the highest score are the true labels
-    else:
-      done = np.all(equal_array) # Done if all of the labels with the highest score are the target labels
-    if done:
-      logger.info('Successfully attacked. Saving and breaking...')
-      return train_dataset.x[indices_to_poison, :]
+    # # Trying to do early stopping
+    # # As mentioned above, test_dataset.labels for indices_to_poison are the true labels when untargeted, and the target labels when targeted
+    # # If untargeted, we check that the label with the highest score (from target_test_pred) is NOT the true label
+    # # If targeted, we check that the label with the highest score (from target_test_pred) IS the target label
+    # label_with_highest_score = np.argmax(target_test_pred, axis=1)
+    # equal_array = np.equal(label_with_highest_score, test_dataset.labels[target_test_indices])
+    # if target_labels == None: # Untargeted
+    #   done = not np.any(equal_array) # Done if none of the labels with the highest score are the true labels
+    # else:
+    #   done = np.all(equal_array) # Done if all of the labels with the highest score are the target labels
+    # if done:
+    #   logger.info('Successfully attacked. Saving and breaking...')
+    #   return train_dataset.x[indices_to_poison, :]
 
   # return poisons even if attack failed
   return train_dataset.x[indices_to_poison, :]
