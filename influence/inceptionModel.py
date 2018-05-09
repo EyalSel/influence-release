@@ -21,6 +21,7 @@ import math
 from influence.hessians import hessians
 from influence.genericNeuralNet import GenericNeuralNet, variable, variable_with_weight_decay
 from influence.inception_v3 import InceptionV3
+from influence.inceptionResNetV2 import InceptionResNetV2
 
 from keras.layers import Flatten
 from keras.layers import AveragePooling2D
@@ -36,13 +37,18 @@ logging.debug("test")
 
 class BinaryInceptionModel(GenericNeuralNet):
 
-    def __init__(self, img_side, num_channels, weight_decay, **kwargs):
+    def __init__(self, img_side, num_channels, weight_decay, use_InceptionResNet=False, **kwargs):
         self.weight_decay = weight_decay
         
         self.img_side = img_side
         self.num_channels = num_channels
         self.input_dim = img_side * img_side * num_channels
-        self.num_features = 2048 # Hardcoded for inception. For some reason Flatten() doesn't register num_features.
+        
+        # if use_InceptionResNet, then we switch the model's arch 
+        # from Inception to InceptionResNet
+        self.use_InceptionResNet = use_InceptionResNet
+        self.num_features = 1536 if self.use_InceptionResNet else 2048 # Hardcoded for inception. For some reason Flatten() doesn't register num_features.
+
 
         super(BinaryInceptionModel, self).__init__(**kwargs)
 
@@ -182,13 +188,20 @@ class BinaryInceptionModel(GenericNeuralNet):
         #                         TF_WEIGHTS_PATH_NO_TOP,
         #                         cache_subdir='models',
         #                         md5_hash='bcbd6486424b2319ff4ef7d526e38f63')
-        weights_path = '../inception/inception_v3_weights_tf_dim_ordering_tf_kernels_notop.h5'
+        if not self.use_InceptionResNet:
+            weights_path = '../inception/inception_v3_weights_tf_dim_ordering_tf_kernels_notop.h5'
+        else:
+            # use the weight for inceptionResNet 
+            weights_path = '../inception/inception_resnet_v2_weights_tf_dim_ordering_tf_kernels_notop.h5'
         self.inception_model.load_weights(weights_path)
 
 
     def inference(self, input):        
         reshaped_input = tf.reshape(input, [-1, self.img_side, self.img_side, self.num_channels])
-        self.inception_model = InceptionV3(include_top=False, weights='imagenet', input_tensor=reshaped_input)
+        if self.use_InceptionResNet:
+            self.inception_model = InceptionResNetV2(include_top=False, weights='imagenet', input_tensor=reshaped_input)
+        else:
+            self.inception_model = InceptionV3(include_top=False, weights='imagenet', input_tensor=reshaped_input)
         
         raw_inception_features = self.inception_model.output
 
