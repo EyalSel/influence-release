@@ -24,6 +24,8 @@ from shutil import copyfile
 import tensorflow as tf
 from tensorflow.contrib.learn.python.learn.datasets import base
 
+from util import get_dataset
+
 import sys
 sys.dont_write_bytecode=True
 
@@ -54,12 +56,20 @@ import matplotlib.pyplot as plt
 #num_to_perterb = 2
 ## --------End of arguments----------
 
-def data_poisoning(data_selected, 
+def data_poisoning(dataset_metadata, # see utils.py
 				   num_train_ex_per_class, num_test_ex_per_class,
 				   use_IF,
 				   target_test_idx,
 				   num_to_perterb = 1,
-				   target_labels = None):
+				   target_labels = None,
+				   cache = None):
+	"""
+	cache would really save time in execution if provided
+	cache["full_model_and_graph"] should give (full_model, full_graph)
+	cache["top_model_and_graph"] should give (top_model, top_graph)
+	cache["data_sets"] should give (data_sets)
+	"""
+	data_selected = dataset_metadata["classes"]
 	num_classes = len(data_selected)
 
 	img_side = 299
@@ -74,51 +84,32 @@ def data_poisoning(data_selected,
 
 	max_iter = 1000
 
-	dataset_name = 'poisoning_%s_%s' % (num_train_ex_per_class, num_test_ex_per_class)
-	valid_str = ''
-	data_filename = os.path.join('../data/', 'dataset_%s_train-%s_test-%s%s.npz' % ('-'.join(data_selected), num_train_ex_per_class, num_test_ex_per_class, valid_str))
-	if not os.path.exists(data_filename):
-		extract_and_rename_animals()
-	data_sets = load_animals(
-					num_train_ex_per_class=num_train_ex_per_class, 
-					num_test_ex_per_class=num_test_ex_per_class,
-					classes=data_selected)
+	# Load dataset or get it from cache
+	data_sets = None
+	if cache and cache.get("data_sets"):
+		data_sets = cache.get("data_sets")
+	else:
+		data_sets = get_dataset(dataset_metadata)
 
+
+	# Make sure that if target labels are given, they are not the same as the true label
 	if target_labels:
 		assert len(target_labels) == len(target_test_idx)
 		for label, test_idx in zip(target_test_idx, target_labels):
 			assert data_sets.test.labels[test_idx] != label
 
+	# Feature Collusion was built for poisoning one test image at a time
 	if not use_IF:
 		assert len(target_test_idx) == 1
 
-	# dataset_name = 'dogfish_%s_%s' % (num_train_ex_per_class, num_test_ex_per_class)
-	# # extract_and_rename_animals()
-	# data_sets = load_animals(
-	#     num_train_ex_per_class=num_train_ex_per_class, 
-	#     num_test_ex_per_class=num_test_ex_per_class,
-	#     classes=data_selected)
-
-	full_graph = tf.Graph()
 	top_graph = tf.Graph()
-	
+
 	print('*** Full:')
-	with full_graph.as_default():
-		full_model_name = '%s_inception_wd-%s' % (dataset_name, weight_decay)
-		full_model = BinaryInceptionModel(
-			img_side=img_side,
-			num_channels=num_channels,
-			weight_decay=weight_decay,
-			num_classes=num_classes, 
-			batch_size=batch_size,
-			data_sets=data_sets,
-			initial_learning_rate=initial_learning_rate,
-			keep_probs=keep_probs,
-			decay_epochs=decay_epochs,
-			mini_batch=True,
-			train_dir='output',
-			log_dir='log',
-			model_name=full_model_name)
+	# load full model or get it from cache
+	if cache and cache.get("full_model_and_graph"):
+		full_graph, full_model = cache.get("full_model_and_graph")
+	else:
+		full_graph, full_model = get_full_model_graph(datasets_metadata, data_sets)
 
 	if use_IF:
 		with full_graph.as_default():
