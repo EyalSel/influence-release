@@ -24,7 +24,7 @@ from shutil import copyfile
 import tensorflow as tf
 from tensorflow.contrib.learn.python.learn.datasets import base
 
-from util import get_dataset
+from utils import get_dataset
 
 import sys
 sys.dont_write_bytecode=True
@@ -57,7 +57,6 @@ import matplotlib.pyplot as plt
 ## --------End of arguments----------
 
 def data_poisoning(dataset_metadata, # see utils.py
-				   num_train_ex_per_class, num_test_ex_per_class,
 				   use_IF,
 				   target_test_idx,
 				   num_to_perterb = 1,
@@ -110,6 +109,8 @@ def data_poisoning(dataset_metadata, # see utils.py
 		full_graph, full_model = cache.get("full_model_and_graph")
 	else:
 		full_graph, full_model = get_full_model_graph(datasets_metadata, data_sets)
+
+	dataset_name = 'poisoning_%s_%s' % (dataset_metadata["num_train_ex_per_class"], dataset_metadata["num_test_ex_per_class"])
 
 	if use_IF:
 		with full_graph.as_default():
@@ -206,7 +207,7 @@ def data_poisoning(dataset_metadata, # see utils.py
 				force_refresh=True)
 		copyfile(
 			'output/%s-test-%s.npz' % (top_model_name, test_description),
-			'output/%s-test-%s.npz' % (full_model_name, test_description))
+			'output/%s-test-%s.npz' % (full_model.model_name, test_description))
 
 		# Use full model to select indices to poison
 		with full_graph.as_default():
@@ -239,10 +240,14 @@ def data_poisoning(dataset_metadata, # see utils.py
 		beta = 2048.**2/(img_side*img_side*num_channels)**2*.25
 		attack_fn = baseline_iterative_attack # Taken from Progress.py
 
+	data_sets_train_copy = DataSet(np.copy(data_sets.train.x), np.copy(data_sets.train.labels))
+	data_sets_test_copy = DataSet(np.copy(data_sets.test.x), np.copy(data_sets.test.labels))
+
+
 	poisoned_images = attack_fn(top_model, full_model, top_graph, full_graph, 
 							  target_test_idx, 
 							  test_description, 
-							  data_sets.train, data_sets.test, dataset_name,
+							  data_sets_train_copy, data_sets_test_copy, dataset_name,
 							  indices_to_poison=index_to_poison,
 							  num_iter=100 if use_IF else 1000,
 							  step_size=step_size,

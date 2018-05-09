@@ -23,8 +23,8 @@ dataset_metadatas = {
 	"Eagle-Mushroom-Snail":{
 		"name":"Eagle-Mushroom-Snail",
 		"classes":["Eagle", "Mushroom", "Snail"],
-		"num_train_ex_per_class":500
-		"num_test_ex_per_class":50
+		"num_train_ex_per_class":500,
+		"num_test_ex_per_class":50,
 		"batch_size":50
 	}
 }
