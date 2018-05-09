@@ -316,7 +316,8 @@ def baseline_iterative_attack(
 	
     assert beta is not None
     result = np.zeros_like(train_dataset.x[indices_to_poison])
-		
+    threshold = 2.0
+    ones = np.ones_like(train_dataset.x[0])
     for counter, train_idx in enumerate(indices_to_poison):
         b = train_dataset.x[train_idx]
         t = test_dataset.x[test_indices]
