@@ -324,13 +324,15 @@ def baseline_iterative_attack(
         x = np.copy(b)
 
         for j in range(num_iter):
+            norm = full_model.get_Lp(x, t)
+            if norm <= threshold: break
             if j%100==0:
-                print(j, full_model.get_Lp(x, t))
+                print(j, norm)
             gradients_Lp = full_model.get_gradiant_Lp(x, t)
 
             x_hat = x - step_size * gradients_Lp
             x_next = (x_hat + step_size * beta * b) / (1 + beta * step_size)
-            x = x_next
+            x = np.clip(x_next, -1 * ones, ones)
         result[counter, :] = x
 
     return result 

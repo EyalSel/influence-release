@@ -189,7 +189,7 @@ def data_poisoning(data_selected,
 	### Create poisoned dataset
 	print('Creating poisoned dataset...')
 
-	step_size = 0.02
+	step_size = 0.02 if use_IF else 0.2
 	print('step_size is', step_size)
 
 	num_train = len(data_sets.train.labels)
