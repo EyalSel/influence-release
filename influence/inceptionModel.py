@@ -243,17 +243,18 @@ class BinaryInceptionModel(GenericNeuralNet):
         #x_posion_features = self.inception_features[0]
         #t_target_features = self.inception_features[1]
         print("inception_features: ", self.inception_features)
-        x_poison_features = tf.gather(self.inception_features, [0])
-        t_target_features = tf.gather(self.inception_features, [1])
+        x_poison_features =  tf.strided_slice(self.inception_features, [0], [-1])
+        t_target_features = tf.gather(tf.reverse(self.inception_features, axis=[0]), [0])
         print("x_poison_features: ", x_poison_features)
         print("t_target_features: ", t_target_features)
         # Get L2 distance between them -> Now we have final tensor
         #Lp = tf.square(tf.norm(x_poison_features - t_target_features))
-        Lp = tf.norm(x_poison_features - t_target_features)
+        
+        Lp = tf.reduce_mean(tf.norm(x_poison_features - t_target_features, axis=1))
 
         print("Lp: ", Lp)
         # Get gradient of final loss tensor with respect to input tensor and get slice [0] of gradients (just of x poison)
-        Lp_gradient = tf.gradients([Lp], [self.input_placeholder])[0][0]
+        Lp_gradient = tf.gradients([Lp], [self.input_placeholder])[0][:-1]
         print("LP_gradient", Lp_gradient)
         return Lp, Lp_gradient
     

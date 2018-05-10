@@ -318,22 +318,24 @@ def baseline_iterative_attack(
     result = np.zeros_like(train_dataset.x[indices_to_poison])
     threshold = 2.0
     ones = np.ones_like(train_dataset.x[0])
-    for counter, train_idx in enumerate(indices_to_poison):
-        b = train_dataset.x[train_idx]
-        t = test_dataset.x[test_indices]
-        x = np.copy(b)
+    
+    # Instead of iterating over all points here, call full_model.get_gradiant_Lp on the entire batch, and it will return
+    # A matrix of the same size for the gradients of the all the points, see binary_inception for how we should do it
 
-        for j in range(num_iter):
+    b = np.copy(train_dataset.x[indices_to_poison])
+    t = test_dataset.x[test_indices]
+    x = np.copy(b)
+
+    for j in range(num_iter):
+        if j%100==0:
             norm = full_model.get_Lp(x, t)
-            if norm <= threshold: break
-            if j%100==0:
-                print(j, norm)
-            gradients_Lp = full_model.get_gradiant_Lp(x, t)
+            if norm <= threshold:
+                break
+            print(j, norm)
+        gradients_Lp = full_model.get_gradiant_Lp(x, t)
+        x_hat = x - step_size * gradients_Lp
+        x_next = (x_hat + step_size * beta * b) / (1 + beta * step_size)
+        x = np.clip(x_next, -1 * ones, ones)
 
-            x_hat = x - step_size * gradients_Lp
-            x_next = (x_hat + step_size * beta * b) / (1 + beta * step_size)
-            x = np.clip(x_next, -1 * ones, ones)
-        result[counter, :] = x
-
-    return result 
+    return x 
     
