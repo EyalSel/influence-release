@@ -94,8 +94,8 @@ def data_poisoning(dataset_metadata, # see utils.py
 	# Make sure that if target labels are given, they are not the same as the true label
 	if target_labels:
 		assert len(target_labels) == len(target_test_idx)
-		for label, test_idx in zip(target_test_idx, target_labels):
-			assert data_sets.test.labels[test_idx] != label
+		for test_idx, label in zip(target_test_idx, target_labels):
+			assert data_sets.test.labels[int(test_idx)] != label
 
 	# Feature Collusion was built for poisoning one test image at a time
 	if not use_IF:
@@ -110,8 +110,7 @@ def data_poisoning(dataset_metadata, # see utils.py
 	else:
 		full_graph, full_model = get_full_model_graph(datasets_metadata, data_sets)
 
-	dataset_name = 'poisoning_%s_%s' % (dataset_metadata["num_train_ex_per_class"], dataset_metadata["num_test_ex_per_class"])
-
+	dataset_name = 'poisoning_%s_%s_%s' % (dataset_metadata["num_train_ex_per_class"], dataset_metadata["num_test_ex_per_class"], dataset_metadata["name"])
 	if use_IF:
 		with full_graph.as_default():
 			for data_set, label in [
@@ -243,7 +242,7 @@ def data_poisoning(dataset_metadata, # see utils.py
 	data_sets_train_copy = DataSet(np.copy(data_sets.train.x), np.copy(data_sets.train.labels))
 	data_sets_test_copy = DataSet(np.copy(data_sets.test.x), np.copy(data_sets.test.labels))
 
-
+	index_to_poison = np.asarray(list(map(int, index_to_poison)))
 	poisoned_images = attack_fn(top_model, full_model, top_graph, full_graph, 
 							  target_test_idx, 
 							  test_description, 

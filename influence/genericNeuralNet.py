@@ -277,7 +277,7 @@ class GenericNeuralNet(object):
 	def minibatch_mean_eval(self, ops, data_set):
 
 			num_examples = data_set.num_examples
-			assert num_examples % self.batch_size == 0
+			# assert num_examples % self.batch_size == 0
 			num_iter = int(num_examples / self.batch_size)
 
 			self.reset_datasets()
