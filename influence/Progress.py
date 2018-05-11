@@ -150,7 +150,7 @@ def get_hvp(model,
             test_data, train_data,
             test_description,
             test_idx = None,
-			force_refresh=True,
+            force_refresh=True,
             target_labels = None):
   # returns a list of gradients of size P (to represent P parameters in the model)
   # target_labels is the target label that we want to flip to. The loss function we want to minimze (and get the gradient for):
@@ -160,9 +160,10 @@ def get_hvp(model,
   #    raise Exception("Can only do label targetting for one test point at a time")
 
   if test_idx == None:
-      interesting_test_data = test_data
+    interesting_test_data = test_data
   else:
-      interesting_test_data = DataSet(test_data.x[test_idx, :], test_data.labels[test_idx])
+    test_idx = list(map(int, test_idx))
+    interesting_test_data = DataSet(test_data.x[test_idx, :], test_data.labels[test_idx])
   test_grad_loss_no_reg_val = get_test_grad_loss_no_reg_val(model, interesting_test_data)
   # test_grad_loss_no_reg_val = get_test_grad_loss_no_reg_val(model, test_data)
   logger.debug('Norm of test gradient: %s' % np.linalg.norm(np.concatenate(test_grad_loss_no_reg_val)))
@@ -312,7 +313,7 @@ def baseline_iterative_attack(
      step_size=1,
      save_iter=1,
      beta = None,
-	 target_labels = None):
+     target_labels = None):
 	
     assert beta is not None
     result = np.zeros_like(train_dataset.x[indices_to_poison])
@@ -323,7 +324,7 @@ def baseline_iterative_attack(
     # A matrix of the same size for the gradients of the all the points, see binary_inception for how we should do it
 
     b = np.copy(train_dataset.x[indices_to_poison])
-    t = test_dataset.x[test_indices]
+    t = test_dataset.x[list(map(int, test_indices))]
     x = np.copy(b)
 
     for j in range(num_iter):
