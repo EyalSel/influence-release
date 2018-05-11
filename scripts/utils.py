@@ -79,7 +79,7 @@ def render_img(img):
     img_copy += 0.5
     io.imshow(img_copy)
     
-def get_full_model_graph(datasets_metadata, data_sets, model_type = "inception"):
+def get_full_model_graph(datasets_metadata, data_sets, model_type = "inception", use_InceptionResNet=False):
     if model_type == "inception" or "resnet-inception":
         img_side = 299
         num_channels = 3 
@@ -98,6 +98,7 @@ def get_full_model_graph(datasets_metadata, data_sets, model_type = "inception")
             img_side=img_side,
             num_channels=num_channels,
             weight_decay=weight_decay,
+            use_InceptionResNet = use_InceptionResNet,
             num_classes=num_classes, 
             batch_size=batch_size,
             data_sets=data_sets,
